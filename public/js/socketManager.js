@@ -29,22 +29,39 @@ class SocketManager {
     return this.socket;
   }
 
-  // NTP 방식 정밀 시간 동기화 (왕복 지연시간 보정)
+  // 온라인 멀티플레이어 표준 NTP (SNTP) 정밀 시간 동기화 (3회 측정 후 최소 RTT 샘플 채택)
   syncServerTime(callback) {
     if (!this.socket) return;
-    const t0 = Date.now();
 
-    this.socket.emit('syncTime', t0, (res) => {
-      if (res && res.serverTime) {
-        const t3 = Date.now();
-        const rtt = t3 - res.clientSendTime;
-        const latency = rtt / 2;
-        this.serverTimeOffset = res.serverTime + latency - t3;
-        this.isSynced = true;
-        console.log(`[NTP Sync] Offset: ${this.serverTimeOffset.toFixed(1)}ms (RTT: ${rtt}ms)`);
-        if (callback) callback(this.serverTimeOffset);
-      }
-    });
+    const samples = [];
+    const maxSamples = 3;
+
+    const takeSample = (index) => {
+      const t0 = Date.now();
+      this.socket.emit('syncTime', t0, (res) => {
+        if (res && res.serverTime) {
+          const t3 = Date.now();
+          const rtt = t3 - res.clientSendTime;
+          const latency = rtt / 2;
+          const offset = res.serverTime + latency - t3;
+          samples.push({ rtt, offset });
+        }
+
+        if (index < maxSamples - 1) {
+          setTimeout(() => takeSample(index + 1), 80);
+        } else if (samples.length > 0) {
+          // 지터(네트워크 튐) 배제를 위해 RTT(왕복 지연시간)가 가장 작은 최적 샘플 채택
+          samples.sort((a, b) => a.rtt - b.rtt);
+          const best = samples[0];
+          this.serverTimeOffset = best.offset;
+          this.isSynced = true;
+          console.log(`[NTP Sync Complete] 정밀 오프셋 확정: ${this.serverTimeOffset.toFixed(1)}ms (최소 RTT: ${best.rtt}ms)`);
+          if (callback) callback(this.serverTimeOffset);
+        }
+      });
+    };
+
+    takeSample(0);
   }
 
   getSyncedNow() {

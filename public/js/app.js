@@ -526,12 +526,21 @@ document.addEventListener('DOMContentLoaded', () => {
   // ============================================
 
   let clientTimerInterval = null;
+  let clientTimerRaf = null;
   let heartbeatInterval = null;
+  let activeTurnExpiresAt = null;
+  let activeTurnTotalSec = 5;
+  let activeTurnIsMyTurn = false;
 
   function clearClientTurnTimer() {
+    activeTurnExpiresAt = null;
     if (clientTimerInterval) {
       clearInterval(clientTimerInterval);
       clientTimerInterval = null;
+    }
+    if (clientTimerRaf) {
+      cancelAnimationFrame(clientTimerRaf);
+      clientTimerRaf = null;
     }
     if (heartbeatInterval) {
       clearInterval(heartbeatInterval);
@@ -546,10 +555,19 @@ document.addEventListener('DOMContentLoaded', () => {
     clearClientTurnTimer();
     if (!turnExpiresAt) return;
 
+    activeTurnExpiresAt = turnExpiresAt;
+    activeTurnTotalSec = totalSec;
+    activeTurnIsMyTurn = isMyTurn;
+
     const totalMs = totalSec * 1000;
 
     const updateTimer = () => {
-      const remainingMs = Math.max(0, turnExpiresAt - Date.now());
+      if (!activeTurnExpiresAt) return;
+
+      // [핵심] 로컬 Date.now() 대신 NTP 보정된 서버 기준 시각(getSyncedNow) 사용!
+      // 기기별 물리적 시계 시차(Clock Skew)를 0으로 소멸시킴
+      const syncedNow = window.socketManager.getSyncedNow();
+      const remainingMs = Math.max(0, activeTurnExpiresAt - syncedNow);
       const remainingSec = (remainingMs / 1000).toFixed(1);
       const ratio = Math.max(0, Math.min(1, remainingMs / totalMs));
 
@@ -590,8 +608,36 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     updateTimer();
-    clientTimerInterval = setInterval(updateTimer, 80);
+
+    // 1) 60fps 부드러운 애니메이션을 위한 RAF 루프
+    const rafLoop = () => {
+      if (activeTurnExpiresAt) {
+        updateTimer();
+        clientTimerRaf = requestAnimationFrame(rafLoop);
+      }
+    };
+    clientTimerRaf = requestAnimationFrame(rafLoop);
+
+    // 2) 백그라운드 탭 스로틀링 완화를 위한 100ms 백업 인터벌
+    clientTimerInterval = setInterval(updateTimer, 100);
   }
+
+  // 브라우저 탭 활성화/복귀 시 (모바일 화면 잠금 해제 등) 즉시 시각 재동기화 및 타이머 보정
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      console.log('[Visibility] 탭 복귀 감지 ➔ NTP 정밀 시간 즉시 재동기화');
+      window.socketManager.syncServerTime(() => {
+        if (activeTurnExpiresAt) {
+          // 즉시 최신 시간으로 타이머 화면 갱신
+          const syncedNow = window.socketManager.getSyncedNow();
+          const remainingMs = Math.max(0, activeTurnExpiresAt - syncedNow);
+          if (els.turnTimerSeconds) {
+            els.turnTimerSeconds.textContent = `${(remainingMs / 1000).toFixed(1)}초`;
+          }
+        }
+      });
+    }
+  });
 
   // 3. 후반부 악어 분노 연출 (0: 평온, 1: 경계/흥분, 2: 극도분노/폭주)
   function updateCrocodileRage(rageLevel, remainingTeeth) {
