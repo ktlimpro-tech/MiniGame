@@ -290,17 +290,17 @@
               <div class="flex-grow border-t border-slate-700"></div>
             </div>
 
-            <div class="flex items-center gap-2">
+            <div class="flex items-stretch gap-2">
               <input
                 type="text"
                 id="inputRoomCode"
                 maxlength="4"
                 placeholder="방 코드 4자리"
-                class="flex-1 px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-center font-mono font-bold tracking-widest text-slate-100 focus:outline-none focus:border-emerald-400 uppercase text-base"
+                class="min-w-0 flex-1 px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-center font-mono font-bold tracking-widest text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 uppercase text-base"
               />
               <button
                 id="btnJoinRoom"
-                class="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-base active:scale-95 transition"
+                class="shrink-0 whitespace-nowrap px-5 sm:px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm sm:text-base active:scale-95 transition flex items-center justify-center shadow"
               >
                 참여하기
               </button>
