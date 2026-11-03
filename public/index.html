@@ -356,30 +356,32 @@
       </div>
     </section>
 
-    <!-- 4. 최종 결과 화면 (Result) - 화면 중앙 Best-fit & 버튼 균일화 -->
-    <section id="viewResult" class="hidden flex-1 flex flex-col justify-center gap-3 py-1">
-      <div class="text-center space-y-1.5">
-        <div class="text-4xl animate-bounce">🐊💥</div>
-        <h2 class="text-xl font-black text-rose-500 leading-tight">악어에게 물렸습니다!</h2>
+    <!-- 4. 최종 결과 화면 (Result) - 쾌적한 간격과 시원한 카드 배치 -->
+    <section id="viewResult" class="hidden flex-1 flex flex-col justify-between py-2 sm:py-4">
+      <div class="text-center pt-2 sm:pt-4">
+        <!-- 그래픽 & 타이틀 -->
+        <div class="text-4xl sm:text-5xl animate-bounce mb-2">🐊💥</div>
+        <h2 class="text-2xl font-black text-rose-500 tracking-tight leading-tight">악어에게 물렸습니다!</h2>
         
-        <div class="p-3 rounded-2xl bg-rose-500/10 border-2 border-rose-500/40 shadow-xl space-y-1">
-          <div class="text-[11px] font-bold text-rose-300 uppercase tracking-wider">최종 당첨자 (벌칙 수행)</div>
-          <div id="resultLoserName" class="text-3xl font-black text-rose-400 py-0.5">홍길동</div>
-          <div class="border-t border-rose-500/20 pt-1.5">
-            <div id="resultPenaltyText" class="text-base font-black text-amber-300">오늘 커피 쏘기! ☕</div>
+        <!-- 최종 당첨자 카드 (여유롭고 시원한 패딩) -->
+        <div class="mt-4 p-4 sm:p-5 rounded-2xl bg-rose-500/10 border-2 border-rose-500/40 shadow-xl space-y-2">
+          <div class="text-xs font-bold text-rose-300 uppercase tracking-wider">최종 당첨자 (벌칙 수행)</div>
+          <div id="resultLoserName" class="text-3xl sm:text-4xl font-black text-rose-400 py-1">홍길동</div>
+          <div class="border-t border-rose-500/20 pt-2">
+            <div id="resultPenaltyText" class="text-lg font-black text-amber-300">오늘 커피 쏘기! ☕</div>
           </div>
         </div>
       </div>
 
-      <!-- 결과 조작 버튼 (글자 크기 및 높이 완벽 통일) -->
-      <div class="space-y-2 pt-1">
-        <button id="btnShareKakao" class="w-full py-3 rounded-xl bg-[#FEE500] hover:bg-[#FDD800] text-[#191919] font-black text-base flex items-center justify-center gap-2 shadow-lg active:scale-95 transition">
+      <!-- 결과 조작 버튼 (시원한 버튼 간격과 균일한 볼륨) -->
+      <div class="space-y-2.5 pt-4 pb-1">
+        <button id="btnShareKakao" class="w-full py-3.5 rounded-xl bg-[#FEE500] hover:bg-[#FDD800] text-[#191919] font-black text-base flex items-center justify-center gap-2 shadow-lg active:scale-95 transition">
           <span class="text-lg">💬</span> 카카오톡으로 결과 전송
         </button>
-        <button id="btnPlayAgain" class="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base active:scale-95 transition shadow">
+        <button id="btnPlayAgain" class="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base active:scale-95 transition shadow">
           🔄 대기실로 돌아가 한 판 더!
         </button>
-        <button id="btnLeaveResult" class="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-black text-base active:scale-95 transition flex items-center justify-center gap-1.5 shadow">
+        <button id="btnLeaveResult" class="w-full py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-black text-base active:scale-95 transition flex items-center justify-center gap-1.5 shadow">
           <span>🚪</span> 방 나가기
         </button>
       </div>

@@ -890,7 +890,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isHost) {
       els.btnPlayAgain.disabled = false;
       els.btnPlayAgain.textContent = '🔄 대기실로 돌아가 한 판 더!';
-      els.btnPlayAgain.className = 'w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base active:scale-95 transition shadow cursor-pointer';
+      els.btnPlayAgain.className = 'w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base active:scale-95 transition shadow cursor-pointer';
       els.btnPlayAgain.onclick = () => {
         window.socketManager.resetToLobby(currentRoom.id, myToken, (res) => {
           if (!res || !res.success) showAlert(res ? res.error : '대기실 복귀에 실패했습니다.', { title: '복귀 실패', icon: '⚠️' });
@@ -899,7 +899,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       els.btnPlayAgain.disabled = true;
       els.btnPlayAgain.textContent = '⏳ 방장이 다음 판 준비 중...';
-      els.btnPlayAgain.className = 'w-full py-3 rounded-xl bg-slate-800/80 border border-slate-700/80 text-slate-400 font-black text-base cursor-not-allowed opacity-80 select-none';
+      els.btnPlayAgain.className = 'w-full py-3.5 rounded-xl bg-slate-800/80 border border-slate-700/80 text-slate-400 font-black text-base cursor-not-allowed opacity-80 select-none';
       els.btnPlayAgain.onclick = null;
     }
   }
