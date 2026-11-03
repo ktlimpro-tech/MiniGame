@@ -867,10 +867,7 @@ document.addEventListener('DOMContentLoaded', () => {
 일시: ${dateStr}
 
 🐊 최종 물린 사람 (벌칙):
-• ${loser.nickname} 👉 ${els.resultPenaltyText.textContent}
-
-🎮 한 판 더 하러 가기:
-${window.location.origin}`;
+• ${loser.nickname} 👉 ${els.resultPenaltyText.textContent}`;
 
       if (navigator.share) {
         try {
