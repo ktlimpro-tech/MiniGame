@@ -55,9 +55,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Game (Crocodile)
     turnAlertBox: document.getElementById('turnAlertBox'),
+    turnTimerProgress: document.getElementById('turnTimerProgress'),
+    turnTimerSeconds: document.getElementById('turnTimerSeconds'),
+    rageIndicator: document.getElementById('rageIndicator'),
     currentTurnName: document.getElementById('currentTurnName'),
     turnNoticeSub: document.getElementById('turnNoticeSub'),
+    crocStage: document.getElementById('crocStage'),
     crocJawUpper: document.getElementById('crocJawUpper'),
+    crocSnout: document.getElementById('crocSnout'),
+    crocEyeLeft: document.getElementById('crocEyeLeft'),
+    crocEyeRight: document.getElementById('crocEyeRight'),
+    crocSmokeLeft: document.getElementById('crocSmokeLeft'),
+    crocSmokeRight: document.getElementById('crocSmokeRight'),
+    crocMouth: document.getElementById('crocMouth'),
+    remainingTeethCount: document.getElementById('remainingTeethCount'),
+    reactionContainer: document.getElementById('reactionContainer'),
     teethGrid: document.getElementById('teethGrid'),
     gameGuideBanner: document.getElementById('gameGuideBanner'),
 
@@ -509,6 +521,160 @@ document.addEventListener('DOMContentLoaded', () => {
     }).join('');
   }
 
+  // ============================================
+  // [긴장감 요소 1, 3, 4] 타이머, 분노, 리액션 시스템
+  // ============================================
+
+  let clientTimerInterval = null;
+  let heartbeatInterval = null;
+
+  function clearClientTurnTimer() {
+    if (clientTimerInterval) {
+      clearInterval(clientTimerInterval);
+      clientTimerInterval = null;
+    }
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
+    if (els.turnTimerProgress) {
+      els.turnTimerProgress.classList.remove('timer-urgent');
+    }
+  }
+
+  function startClientTurnTimer(turnExpiresAt, totalSec = 5, isMyTurn = false) {
+    clearClientTurnTimer();
+    if (!turnExpiresAt) return;
+
+    const totalMs = totalSec * 1000;
+
+    const updateTimer = () => {
+      const remainingMs = Math.max(0, turnExpiresAt - Date.now());
+      const remainingSec = (remainingMs / 1000).toFixed(1);
+      const ratio = Math.max(0, Math.min(1, remainingMs / totalMs));
+
+      if (els.turnTimerSeconds) {
+        els.turnTimerSeconds.textContent = `${remainingSec}초`;
+      }
+      if (els.turnTimerProgress) {
+        els.turnTimerProgress.style.width = `${ratio * 100}%`;
+      }
+
+      // 남은 시간 2.0초 이하일 때 긴급 심장박동 & 붉은 점멸
+      if (remainingMs <= 2000 && remainingMs > 0) {
+        if (els.turnTimerProgress && !els.turnTimerProgress.classList.contains('timer-urgent')) {
+          els.turnTimerProgress.classList.add('timer-urgent');
+        }
+        if (isMyTurn && !heartbeatInterval) {
+          window.soundFx.playHeartbeat();
+          window.soundFx.vibrate(40);
+          heartbeatInterval = setInterval(() => {
+            window.soundFx.playHeartbeat();
+            window.soundFx.vibrate(40);
+          }, 450);
+        }
+      } else if (remainingMs > 2000) {
+        if (els.turnTimerProgress) {
+          els.turnTimerProgress.classList.remove('timer-urgent');
+        }
+        if (heartbeatInterval) {
+          clearInterval(heartbeatInterval);
+          heartbeatInterval = null;
+        }
+      }
+
+      if (remainingMs <= 0) {
+        clearClientTurnTimer();
+        if (els.turnTimerSeconds) els.turnTimerSeconds.textContent = '0.0초!';
+      }
+    };
+
+    updateTimer();
+    clientTimerInterval = setInterval(updateTimer, 80);
+  }
+
+  // 3. 후반부 악어 분노 연출 (0: 평온, 1: 경계/흥분, 2: 극도분노/폭주)
+  function updateCrocodileRage(rageLevel, remainingTeeth) {
+    if (els.remainingTeethCount) {
+      els.remainingTeethCount.textContent = remainingTeeth;
+    }
+
+    // 기본 초기화
+    if (els.crocJawUpper) els.crocJawUpper.classList.remove('croc-rage-shake');
+    if (els.crocSmokeLeft) els.crocSmokeLeft.classList.add('hidden');
+    if (els.crocSmokeRight) els.crocSmokeRight.classList.add('hidden');
+
+    if (rageLevel === 2) {
+      // 3단계: 극도 분노 폭주! (남은 이빨 <= 3)
+      if (els.rageIndicator) {
+        els.rageIndicator.textContent = '🐊 상태: 극도 분노! 🔥';
+        els.rageIndicator.className = 'text-[11px] font-black text-rose-300 px-2.5 py-0.5 rounded-full bg-rose-950 border border-rose-500 animate-pulse';
+      }
+      if (els.crocJawUpper) els.crocJawUpper.classList.add('croc-rage-shake');
+      if (els.crocSmokeLeft) els.crocSmokeLeft.classList.remove('hidden');
+      if (els.crocSmokeRight) els.crocSmokeRight.classList.remove('hidden');
+      if (els.crocEyeLeft) els.crocEyeLeft.className = 'w-9 h-9 rounded-full bg-rose-700 border-2 border-rose-400 flex items-center justify-center shadow-md';
+      if (els.crocEyeRight) els.crocEyeRight.className = 'w-9 h-9 rounded-full bg-rose-700 border-2 border-rose-400 flex items-center justify-center shadow-md';
+      try { window.soundFx.playGrowl(); } catch (e) {}
+    } else if (rageLevel === 1) {
+      // 2단계: 경계 및 흥분 (남은 이빨 <= 6)
+      if (els.rageIndicator) {
+        els.rageIndicator.textContent = '🐊 상태: 흥분 ⚠️';
+        els.rageIndicator.className = 'text-[11px] font-black text-amber-300 px-2 py-0.5 rounded-full bg-amber-950 border border-amber-500';
+      }
+      if (els.crocEyeLeft) els.crocEyeLeft.className = 'w-9 h-9 rounded-full bg-amber-600 border-2 border-amber-400 flex items-center justify-center shadow-md';
+      if (els.crocEyeRight) els.crocEyeRight.className = 'w-9 h-9 rounded-full bg-amber-600 border-2 border-amber-400 flex items-center justify-center shadow-md';
+    } else {
+      // 1단계: 평온
+      if (els.rageIndicator) {
+        els.rageIndicator.textContent = '🐊 상태: 평온';
+        els.rageIndicator.className = 'text-[11px] font-bold text-slate-400 px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700';
+      }
+      if (els.crocEyeLeft) els.crocEyeLeft.className = 'w-9 h-9 rounded-full bg-emerald-600 border-2 border-emerald-400 flex items-center justify-center shadow-md';
+      if (els.crocEyeRight) els.crocEyeRight.className = 'w-9 h-9 rounded-full bg-emerald-600 border-2 border-emerald-400 flex items-center justify-center shadow-md';
+    }
+  }
+
+  // 4. 관전자 실시간 리액션 이모지 부유 연출
+  function spawnFloatingReaction(data) {
+    if (!els.reactionContainer) return;
+
+    const bubble = document.createElement('div');
+    const randomLeft = 15 + Math.random() * 70; // 15% ~ 85% 가로 랜덤 위치
+    bubble.className = 'floating-reaction absolute flex flex-col items-center pointer-events-none select-none z-30';
+    bubble.style.left = `${randomLeft}%`;
+    bubble.style.bottom = '10px';
+
+    bubble.innerHTML = `
+      <span class="text-3xl filter drop-shadow-md">${data.emoji}</span>
+      <span class="text-[10px] font-black text-amber-300 bg-slate-950/80 px-2 py-0.5 rounded-full border border-slate-700/80 whitespace-nowrap shadow mt-0.5">
+        ${data.senderNickname}: ${data.text}
+      </span>
+    `;
+
+    els.reactionContainer.appendChild(bubble);
+    setTimeout(() => {
+      if (bubble.parentNode) bubble.parentNode.removeChild(bubble);
+    }, 1650);
+  }
+
+  // 리액션 버튼 클릭 이벤트 바인딩
+  document.querySelectorAll('.btn-reaction').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!currentRoom || !myToken) return;
+      window.soundFx.playPop();
+      window.soundFx.vibrate(15);
+      const emoji = btn.getAttribute('data-emoji') || '🐊';
+      const text = btn.getAttribute('data-text') || '';
+      socket.emit('sendReaction', {
+        roomCode: currentRoom.id,
+        token: myToken,
+        emoji,
+        text
+      });
+    });
+  });
+
   // 7. 인게임 렌더링 (악어 이빨)
   function renderCrocodileGame(room) {
     currentRoom = room;
@@ -523,6 +689,15 @@ document.addEventListener('DOMContentLoaded', () => {
     els.teethGrid.style.pointerEvents = 'auto';
 
     const isMyTurn = state.currentTurnToken === myToken;
+
+    // 분노 단계 및 남은 이빨 수 시각화
+    const remaining = state.remainingCount !== undefined
+      ? state.remainingCount
+      : (state.teethCount - state.pressedTeeth.length);
+    updateCrocodileRage(state.rageLevel || 0, remaining);
+
+    // 5초 시한폭탄 타이머 가동
+    startClientTurnTimer(state.turnExpiresAt, state.turnTimeoutSec || 5, isMyTurn);
 
     if (isMyTurn) {
       window.soundFx.playTurn();
@@ -650,6 +825,7 @@ ${window.location.origin}`;
 
   // 소켓 브로드캐스트 이벤트 리스너
   socket.on('roomUpdated', (room) => {
+    clearClientTurnTimer();
     currentRoom = room;
     if (room.status === 'LOBBY') {
       renderLobby(room);
@@ -661,6 +837,11 @@ ${window.location.origin}`;
     currentRoom = room;
     renderCrocodileGame(room);
     showView('game');
+  });
+
+  // 관전자 실시간 리액션 수신
+  socket.on('reactionReceived', (data) => {
+    spawnFloatingReaction(data);
   });
 
   // 안전한 이빨을 눌렀을 때
@@ -675,9 +856,10 @@ ${window.location.origin}`;
     renderCrocodileGame(data.room);
   });
 
-  // 꽝 이빨을 눌러 악어가 쾅 물었을 때
+  // 꽝 이빨을 누르거나 시간 초과로 악어가 쾅 물었을 때
   socket.on('gameFinished', (data) => {
     console.log('[Socket] gameFinished received:', data);
+    clearClientTurnTimer();
     currentRoom = data.room;
 
     // 1. 악어 윗턱 닫힘 연출
@@ -686,9 +868,11 @@ ${window.location.origin}`;
     // 2. 화면 전체 셰이크 & 붉은 경고
     els.mainContainer.classList.add('shake-effect');
     els.turnAlertBox.className = 'text-center p-3 rounded-2xl bg-rose-950 border-2 border-rose-500 shadow-xl';
-    els.currentTurnName.textContent = `💥 콰앙! ${data.loser.nickname}님이 물렸습니다!`;
+    
+    const reasonText = data.isTimeout ? '⏰ 시간 초과로' : '';
+    els.currentTurnName.textContent = `💥 콰앙! ${data.loser.nickname}님이 ${reasonText} 물렸습니다!`;
     els.currentTurnName.className = 'text-2xl font-black text-rose-300 animate-pulse mt-0.5';
-    els.turnNoticeSub.textContent = '악어가 입을 쾅 닫았습니다!';
+    els.turnNoticeSub.textContent = data.isTimeout ? '시간 내에 누르지 않아 악어가 화를 냈습니다!' : '악어가 입을 쾅 닫았습니다!';
 
     // 3. 묵직한 사운드 & 진동
     try {
@@ -704,6 +888,7 @@ ${window.location.origin}`;
   });
 
   socket.on('roomDestroyed', (data) => {
+    clearClientTurnTimer();
     showAlert('방이 해산되었거나 방장이 퇴장했습니다.\n홈 화면으로 이동합니다.', {
       title: '방 해산 안내',
       icon: '🚪',

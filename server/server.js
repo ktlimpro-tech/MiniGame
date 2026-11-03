@@ -113,9 +113,25 @@ io.on('connection', (socket) => {
   });
 
   // 6. 게임 시작 (방장 전용)
+  function attachCrocodileTimer(room) {
+    if (!room || !room.activeGame || typeof room.activeGame.startTurnTimer !== 'function') return;
+    room.activeGame.startTurnTimer(() => {
+      const timeoutRes = room.activeGame.handleTimeout();
+      if (timeoutRes && timeoutRes.broadcast) {
+        broadcastToRoom(room.id, timeoutRes.eventName, timeoutRes.data);
+        console.log(`[GameTimeout] Room(${room.id}) turn timed out! Loser: ${timeoutRes.data?.loser?.nickname}`);
+      }
+    });
+  }
+
   socket.on('startGame', ({ roomCode, token }, callback) => {
+    const code = roomCode ? roomCode.toUpperCase() : '';
+    const room = roomManager.rooms.get(code);
     const result = roomManager.startGame(roomCode, token);
     if (result.success) {
+      if (room && room.activeGame) {
+        attachCrocodileTimer(room);
+      }
       broadcastToRoom(result.room.id, 'gameStarted', result.room);
       console.log(`[GameStart] Room(${result.room.id}) started! First turn: ${result.room.gameState?.currentTurnNickname}`);
     }
@@ -139,6 +155,17 @@ io.on('connection', (socket) => {
     const result = roomManager.handleGameAction(code, token, action, payload);
     if (result && result.broadcast) {
       socket.join(result.roomId);
+
+      if (room && room.activeGame) {
+        if (result.eventName === 'toothPressed') {
+          // 안전한 이빨 ➔ 다음 사람 타이머 시작
+          attachCrocodileTimer(room);
+        } else if (result.eventName === 'gameFinished') {
+          // 게임 종료 ➔ 타이머 정지
+          room.activeGame.clearTurnTimer();
+        }
+      }
+
       broadcastToRoom(result.roomId, result.eventName || 'gameUpdated', result.data);
       console.log(`[GameAction] Room(${result.roomId}) action: ${action}, event: ${result.eventName}, nextPlayer: ${result.data?.nextPlayer?.nickname || result.data?.loser?.nickname}`);
     }
@@ -147,6 +174,10 @@ io.on('connection', (socket) => {
 
   // 8. 대기실로 리셋 (한 판 더!)
   socket.on('resetToLobby', ({ roomCode, token }, callback) => {
+    const code = roomCode ? roomCode.toUpperCase() : '';
+    const room = roomManager.rooms.get(code);
+    if (room && room.activeGame) room.activeGame.clearTurnTimer();
+
     const result = roomManager.resetToLobby(roomCode, token);
     if (result.success) {
       broadcastToRoom(result.room.id, 'roomUpdated', result.room);
@@ -156,6 +187,10 @@ io.on('connection', (socket) => {
 
   // 9. 방 나가기
   socket.on('leaveRoom', ({ roomCode, token }, callback) => {
+    const code = roomCode ? roomCode.toUpperCase() : '';
+    const room = roomManager.rooms.get(code);
+    if (room && room.activeGame) room.activeGame.clearTurnTimer();
+
     const result = roomManager.leaveRoom(socket.id, roomCode, token);
     if (result.success) {
       socket.leave(roomCode);
@@ -166,6 +201,24 @@ io.on('connection', (socket) => {
       }
     }
     if (typeof callback === 'function') callback(result);
+  });
+
+  // 10. 관전자 실시간 리액션 이모지/말풍선 전송
+  socket.on('sendReaction', ({ roomCode, token, emoji, text }) => {
+    const code = roomCode ? roomCode.toUpperCase() : '';
+    const room = roomManager.rooms.get(code);
+    if (!room) return;
+    const player = room.players.find(p => p.token === token);
+    const nickname = player ? player.nickname : '익명';
+
+    broadcastToRoom(room.id, 'reactionReceived', {
+      senderToken: token,
+      senderNickname: nickname,
+      emoji: emoji || '🐊',
+      text: text || '',
+      id: Math.random().toString(36).substring(2, 9),
+      createdAt: Date.now()
+    });
   });
 
   // 10. 연결 해제

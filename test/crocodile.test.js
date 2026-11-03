@@ -73,4 +73,29 @@ describe('🐊 1호 게임: 악어 이빨 (CrocodileGame) 단위 테스트', () 
     assert.strictEqual(room.status, 'RESULT');
     assert.strictEqual(room.gameResults.find(r => r.token === currentTurn.token).isLoser, true);
   });
+
+  it('남은 이빨 수에 따라 악어의 분노 단계(0, 1, 2)가 올바르게 계산되어야 한다', () => {
+    // 10개 이빨: 초기 분노 0단계 (평온)
+    assert.strictEqual(game.getRageLevel(), 0);
+
+    // 이빨 4개 눌러서 남은 이빨 6개 ➔ 분노 1단계 (경계)
+    game.pressedTeeth = [0, 1, 2, 3];
+    assert.strictEqual(game.getRageLevel(), 1);
+
+    // 이빨 7개 눌러서 남은 이빨 3개 ➔ 분노 2단계 (극도 분노/폭주)
+    game.pressedTeeth = [0, 1, 2, 3, 4, 5, 6];
+    assert.strictEqual(game.getRageLevel(), 2);
+  });
+
+  it('5초 타임아웃 발생 시 현재 턴 플레이어가 즉시 패배자로 확정되어야 한다', () => {
+    const currentTurn = game.getCurrentPlayer();
+    const timeoutRes = game.handleTimeout();
+
+    assert.strictEqual(timeoutRes.success, true);
+    assert.strictEqual(timeoutRes.eventName, 'gameFinished');
+    assert.strictEqual(timeoutRes.data.isTimeout, true);
+    assert.strictEqual(timeoutRes.data.loser.token, currentTurn.token);
+    assert.strictEqual(room.status, 'RESULT');
+    assert.strictEqual(room.gameResults.find(r => r.token === currentTurn.token).isLoser, true);
+  });
 });
