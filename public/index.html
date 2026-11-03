@@ -362,6 +362,33 @@
             </select>
           </div>
 
+          <!-- 2호 텔레파시 전용 세부 설정: 인당 카드 수 난이도 (방장 전용) -->
+          <div
+            id="telepathySettingsGroup"
+            class="hidden p-4 rounded-2xl bg-indigo-950/40 border border-indigo-500/40 space-y-2 transition-all duration-200"
+          >
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-bold text-indigo-300"
+                >🃏 1인당 카드 수 (난이도)</span
+              >
+              <span id="telepathyCardNotice" class="text-[11px] text-indigo-300/80 font-medium"
+                >인원수에 맞춰 자동 조절</span
+              >
+            </div>
+            <select
+              id="selectCardsPerPlayer"
+              class="w-full p-2.5 rounded-xl bg-slate-900 border border-indigo-700/60 text-slate-100 font-bold text-sm focus:outline-none focus:border-indigo-400"
+            >
+              <option value="1">🟢 1장 (스피드 맛보기)</option>
+              <option value="2" selected>🟡 2장 (보통 - 추천)</option>
+              <option value="3">🔴 3장 (집중 모드)</option>
+              <option value="4">🔥 4장 (하드코어 긴장감)</option>
+            </select>
+            <div id="telepathyCapHelpText" class="text-[10px] text-slate-400">
+              ※ 참여 인원이 많아지면 숫자 간격 유지를 위해 최대 장수가 안전하게 자동 조절됩니다.
+            </div>
+          </div>
+
           <!-- 벌칙 설정 -->
           <div
             class="p-4 rounded-2xl bg-slate-800/90 border border-slate-700 space-y-2"

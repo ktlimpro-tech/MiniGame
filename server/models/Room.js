@@ -15,7 +15,8 @@ class Room {
 
     // 공통 허브 설정
     this.settings = {
-      gameType: customSettings.gameType || 'crocodile', // 'crocodile' (1호), 'nunchi' (2호), 'liar' (3호)
+      gameType: customSettings.gameType || 'crocodile', // 'crocodile' (1호), 'telepathy' (2호)
+      cardsPerPlayer: customSettings.cardsPerPlayer || 2, // 2호 텔레파시 인당 카드 수
       roles: customSettings.roles || ['당첨 (벌칙)', '생존 (통과)'], // 내기 항목
       turnTimeoutSec: customSettings.turnTimeoutSec || 10,
       ...customSettings

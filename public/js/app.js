@@ -46,6 +46,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Lobby
     selectGameType: document.getElementById('selectGameType'),
     roleNotice: document.getElementById('roleNotice'),
+    telepathySettingsGroup: document.getElementById('telepathySettingsGroup'),
+    selectCardsPerPlayer: document.getElementById('selectCardsPerPlayer'),
+    telepathyCardNotice: document.getElementById('telepathyCardNotice'),
+    telepathyCapHelpText: document.getElementById('telepathyCapHelpText'),
     inputPenalty: document.getElementById('inputPenalty'),
     playerCount: document.getElementById('playerCount'),
     lobbyPlayerList: document.getElementById('lobbyPlayerList'),
@@ -435,8 +439,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const doSync = () => {
       const penalty = els.inputPenalty.value.trim() || '오늘 커피 쏘기! ☕';
       const gameType = els.selectGameType.value || 'crocodile';
+      const cardsPerPlayer = parseInt(els.selectCardsPerPlayer.value, 10) || 2;
       window.socketManager.updateSettings(currentRoom.id, myToken, {
         gameType,
+        cardsPerPlayer,
         roles: [penalty, '생존 (통과)']
       });
     };
@@ -453,13 +459,25 @@ document.addEventListener('DOMContentLoaded', () => {
   els.inputPenalty.addEventListener('input', () => syncRoomSettings(false));
   els.inputPenalty.addEventListener('change', () => syncRoomSettings(true));
   els.inputPenalty.addEventListener('blur', () => syncRoomSettings(true));
-  els.selectGameType.addEventListener('change', () => syncRoomSettings(true));
+  els.selectGameType.addEventListener('change', () => {
+    // 게임 타입 변경 시 즉시 텔레파시 설정 박스 가시성 토글 후 동기화
+    const isTelepathy = els.selectGameType.value === 'telepathy';
+    els.telepathySettingsGroup.classList.toggle('hidden', !isTelepathy);
+    syncRoomSettings(true);
+  });
+  if (els.selectCardsPerPlayer) {
+    els.selectCardsPerPlayer.addEventListener('change', () => syncRoomSettings(true));
+  }
 
   // 4. 게임 시작 클릭 (방장)
   els.btnStartGame.addEventListener('click', () => {
     if (!currentRoom) return;
     const penalty = els.inputPenalty.value.trim() || '오늘 커피 쏘기! ☕';
+    const gameType = els.selectGameType.value || 'crocodile';
+    const cardsPerPlayer = parseInt(els.selectCardsPerPlayer.value, 10) || 2;
     window.socketManager.updateSettings(currentRoom.id, myToken, {
+      gameType,
+      cardsPerPlayer,
       roles: [penalty, '생존 (통과)']
     }, () => {
       window.socketManager.startGame(currentRoom.id, myToken, (res) => {
@@ -524,6 +542,54 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (room.settings && room.settings.gameType) {
       els.selectGameType.value = room.settings.gameType;
+    }
+
+    // 텔레파시 전용 세부 설정 박스 제어
+    const isTelepathy = (room.settings && room.settings.gameType === 'telepathy') || els.selectGameType.value === 'telepathy';
+    if (els.telepathySettingsGroup) {
+      els.telepathySettingsGroup.classList.toggle('hidden', !isTelepathy);
+    }
+
+    if (els.selectCardsPerPlayer && isTelepathy) {
+      const playerCount = room.players.length;
+      let maxAllowed = 4;
+      if (playerCount >= 6) maxAllowed = 2;
+      else if (playerCount >= 4) maxAllowed = 3;
+
+      // 인원수 연동 스마트 캡: 5인 이상 등에서 숫자 빽빽함 방지를 위해 초과 옵션 비활성화
+      Array.from(els.selectCardsPerPlayer.options).forEach(opt => {
+        const val = parseInt(opt.value, 10);
+        opt.disabled = val > maxAllowed;
+        const baseLabels = {
+          '1': '🟢 1장 (스피드 맛보기)',
+          '2': '🟡 2장 (보통 - 추천)',
+          '3': '🔴 3장 (집중 모드)',
+          '4': '🔥 4장 (하드코어 긴장감)'
+        };
+        opt.textContent = val > maxAllowed
+          ? `${opt.value}장 (인원 초과로 선택 불가)`
+          : (baseLabels[opt.value] || `${opt.value}장`);
+      });
+
+      // 현재 선택값이 상한선을 넘으면 자동으로 상한선으로 조정
+      if (parseInt(els.selectCardsPerPlayer.value, 10) > maxAllowed) {
+        els.selectCardsPerPlayer.value = String(maxAllowed);
+      }
+      if (room.settings && room.settings.cardsPerPlayer) {
+        const safeVal = Math.min(parseInt(room.settings.cardsPerPlayer, 10), maxAllowed);
+        els.selectCardsPerPlayer.value = String(safeVal);
+      }
+
+      els.selectCardsPerPlayer.disabled = !isHost;
+
+      if (els.telepathyCardNotice) {
+        els.telepathyCardNotice.textContent = playerCount >= 6
+          ? '6인 이상: 최대 2장 제한'
+          : (playerCount >= 4 ? '4~5인: 최대 3장 제한' : '2~3인: 최대 4장 자유 선택');
+        els.telepathyCardNotice.className = isHost
+          ? 'text-[11px] text-indigo-300 font-semibold'
+          : 'text-[11px] text-slate-400 font-medium';
+      }
     }
 
     if (els.roleNotice) {

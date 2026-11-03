@@ -22,21 +22,37 @@ class TelepathyGame {
 
   init() {
     const playerCount = this.room.players.length;
-    // 인원수별 최적 밸런스 설정:
-    // 2인: 4장씩(총 8장), 하트 2개 (실수 2회 시 즉시 게임오버)
-    // 3인: 3장씩(총 9장), 하트 3개
-    // 4인: 3장씩(총 12장), 하트 3개
-    // 5인 이상: 2장씩, 하트 3개
-    if (playerCount <= 2) {
-      this.cardsPerPlayer = 4;
-      this.hearts = 2;
-    } else if (playerCount <= 4) {
-      this.cardsPerPlayer = 3;
-      this.hearts = 3;
-    } else {
-      this.cardsPerPlayer = 2;
-      this.hearts = 3;
+
+    // 1. 방장이 대기실에서 선택한 카드 수가 있는지 확인
+    let requestedCards = this.room.settings && this.room.settings.cardsPerPlayer
+      ? parseInt(this.room.settings.cardsPerPlayer, 10)
+      : null;
+
+    // 2. 인원수에 따른 안전한 최대 장수 캡(Cap) 적용 (1~100 숫자 간격 보호: 전체 합 12~15장 이하 유지)
+    let maxAllowedCards = 4;
+    if (playerCount >= 6) {
+      maxAllowedCards = 2;
+    } else if (playerCount >= 4) {
+      maxAllowedCards = 3;
     }
+
+    if (requestedCards && !isNaN(requestedCards)) {
+      this.cardsPerPlayer = Math.max(1, Math.min(requestedCards, maxAllowedCards));
+    } else {
+      // 기본 추천값 자동 결정
+      this.cardsPerPlayer = playerCount <= 2 ? 3 : (playerCount <= 4 ? 2 : 2);
+    }
+
+    // 3. 총 카드 수에 비례한 팀 하트 수 결정
+    const totalCards = this.cardsPerPlayer * playerCount;
+    if (totalCards <= 4) {
+      this.hearts = 2; // 적은 카드 수(스피드전): 실수 2회 시 즉시 게임오버
+    } else if (totalCards <= 10) {
+      this.hearts = 2; // 2인 4장(총 8장) 등: 하트 2개로 팽팽한 긴장감 유지
+    } else {
+      this.hearts = 3; // 카드가 많은 경우: 하트 3개 지원
+    }
+
     this.maxHearts = this.hearts;
     this.discardPile = [];
     this.lastPlayedCard = null;

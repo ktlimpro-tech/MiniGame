@@ -13,6 +13,7 @@ describe('🧠 2호 협동 게임: 침묵의 텔레파시 (TelepathyGame) 단위
     room = new Room('TELE', '방장', 'socket-host');
     room.updateSettings({
       gameType: 'telepathy',
+      cardsPerPlayer: 4,
       roles: ['커피 쏘기! ☕', '생존']
     });
     room.addOrReconnectPlayer('socket-player2', '영희');
@@ -167,5 +168,38 @@ describe('🧠 2호 협동 게임: 침묵의 텔레파시 (TelepathyGame) 단위
     assert.strictEqual(resetRes.success, true);
     assert.strictEqual(room.status, 'LOBBY');
     assert.strictEqual(room.activeGame, null);
+  });
+
+  it('방장이 cardsPerPlayer를 3으로 설정했을 때 인당 3장씩 정상 분배되어야 한다', () => {
+    const customRoom = new Room('CUST', '방장', 'sock-1');
+    customRoom.updateSettings({
+      gameType: 'telepathy',
+      cardsPerPlayer: 3
+    });
+    customRoom.addOrReconnectPlayer('sock-2', '영희');
+    customRoom.startGame();
+
+    const tGame = customRoom.activeGame;
+    assert.strictEqual(tGame.cardsPerPlayer, 3);
+    assert.strictEqual(tGame.playerCards.get(customRoom.players[0].token).length, 3);
+    assert.strictEqual(tGame.playerCards.get(customRoom.players[1].token).length, 3);
+  });
+
+  it('6인 다인원 방에서는 숫자 간격 유지를 위해 최대 2장으로 캡(Cap)이 적용되어야 한다', () => {
+    const bigRoom = new Room('BIGR', '방장', 'sock-1');
+    bigRoom.updateSettings({
+      gameType: 'telepathy',
+      cardsPerPlayer: 4 // 방장이 4장(무리한 설정)을 시도
+    });
+    for (let i = 2; i <= 6; i++) {
+      bigRoom.addOrReconnectPlayer(`sock-${i}`, `유저${i}`);
+    }
+    assert.strictEqual(bigRoom.players.length, 6);
+    bigRoom.startGame();
+
+    const tGame = bigRoom.activeGame;
+    // 6인이므로 4장이 아니라 2장으로 안전 캡 적용!
+    assert.strictEqual(tGame.cardsPerPlayer, 2);
+    assert.strictEqual(tGame.playerCards.get(bigRoom.players[0].token).length, 2);
   });
 });
