@@ -116,27 +116,27 @@
   <!-- 메인 모바일 컨테이너 (최대 480px) -->
   <main id="mainContainer" class="w-full max-w-md min-h-screen min-h-[100dvh] flex flex-col justify-between p-4 relative shadow-2xl bg-slate-900 border-x border-slate-800 transition-colors duration-200">
 
-    <!-- 상단 헤더 (2단 구조로 모바일 가로폭 최적화) -->
-    <header class="pb-2.5 border-b border-slate-800 space-y-1">
-      <!-- 1행: 주 메뉴 라인 (로고 + 사운드 토글 + 나가기 버튼) -->
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-1.5">
-          <span class="text-xl animate-pulse">🐊</span>
-          <h1 class="text-base sm:text-lg font-black tracking-wider text-amber-400 leading-none">MiniGame Hub</h1>
+    <!-- 상단 헤더 (모바일 가로폭 및 텍스트 수직 정렬 최적화) -->
+    <header class="pb-2 border-b border-slate-800 flex items-center justify-between">
+      <!-- 좌측: 악어 아이콘 + (MiniGame Hub & 스피디 내기 게임 정렬) -->
+      <div class="flex items-center gap-2">
+        <span class="text-2xl animate-pulse">🐊</span>
+        <div class="flex flex-col">
+          <h1 class="text-base sm:text-lg font-black tracking-wider text-amber-400 leading-tight">MiniGame Hub</h1>
+          <span class="text-[11px] text-slate-400 font-bold tracking-tight">스피디 내기 게임</span>
         </div>
+      </div>
+
+      <!-- 우측: 1행(소리+나가기), 2행(방코드 뱃지) 정렬 -->
+      <div class="flex flex-col items-end gap-1">
         <div class="flex items-center gap-1.5">
           <button id="btnSoundToggle" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs sm:text-sm border border-slate-700 flex items-center justify-center transition shadow-sm" title="사운드 On/Off">
             🔊
           </button>
-          <button id="btnLeaveRoomHeader" class="hidden px-2 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-xs font-bold text-rose-300 transition flex items-center gap-1 shadow-sm" title="방 나가기">
+          <button id="btnLeaveRoomHeader" class="hidden px-2.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-xs font-bold text-rose-300 transition flex items-center gap-1 shadow-sm" title="방 나가기">
             <span>🚪</span><span class="hidden sm:inline">나가기</span>
           </button>
         </div>
-      </div>
-
-      <!-- 2행: 서브 상태 라인 ('스피디 내기 게임' + '방: 3YWQ' 코드 뱃지) -->
-      <div class="flex items-center justify-between text-[11px] font-bold">
-        <span class="text-slate-400 tracking-tight">스피디 내기 게임</span>
         <div id="roomBadge" class="hidden px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[11px] font-mono font-bold text-amber-300">
           방: <span id="displayRoomCode">----</span>
         </div>
@@ -356,31 +356,31 @@
       </div>
     </section>
 
-    <!-- 4. 최종 결과 화면 (Result) -->
-    <section id="viewResult" class="hidden flex-1 flex flex-col justify-between py-2 sm:py-5">
-      <div class="text-center space-y-2 sm:space-y-4 my-auto">
-        <div class="text-4xl sm:text-6xl animate-bounce">🐊💥</div>
-        <h2 class="text-xl sm:text-2xl font-black text-rose-500 leading-tight">악어에게 물렸습니다!</h2>
+    <!-- 4. 최종 결과 화면 (Result) - 화면 중앙 Best-fit & 버튼 균일화 -->
+    <section id="viewResult" class="hidden flex-1 flex flex-col justify-center gap-3 py-1">
+      <div class="text-center space-y-1.5">
+        <div class="text-4xl animate-bounce">🐊💥</div>
+        <h2 class="text-xl font-black text-rose-500 leading-tight">악어에게 물렸습니다!</h2>
         
-        <div class="p-3 sm:p-5 rounded-2xl bg-rose-500/10 border-2 border-rose-500/40 shadow-xl space-y-1.5 sm:space-y-2">
-          <div class="text-[11px] sm:text-xs font-bold text-rose-300 uppercase tracking-wider">최종 당첨자 (벌칙 수행)</div>
-          <div id="resultLoserName" class="text-2xl sm:text-4xl font-black text-rose-400 py-0.5">홍길동</div>
-          <div class="border-t border-rose-500/20 pt-1.5 sm:pt-2">
-            <div id="resultPenaltyText" class="text-sm sm:text-lg font-black text-amber-300">오늘 커피 쏘기! ☕</div>
+        <div class="p-3 rounded-2xl bg-rose-500/10 border-2 border-rose-500/40 shadow-xl space-y-1">
+          <div class="text-[11px] font-bold text-rose-300 uppercase tracking-wider">최종 당첨자 (벌칙 수행)</div>
+          <div id="resultLoserName" class="text-3xl font-black text-rose-400 py-0.5">홍길동</div>
+          <div class="border-t border-rose-500/20 pt-1.5">
+            <div id="resultPenaltyText" class="text-base font-black text-amber-300">오늘 커피 쏘기! ☕</div>
           </div>
         </div>
       </div>
 
-      <!-- 결과 조작 버튼 -->
-      <div class="space-y-2 sm:space-y-3 pt-2 sm:pt-4">
-        <button id="btnShareKakao" class="w-full py-3 sm:py-4 rounded-xl bg-[#FEE500] hover:bg-[#FDD800] text-[#191919] font-black text-base sm:text-lg flex items-center justify-center gap-2 shadow-lg active:scale-95 transition">
-          <span class="text-lg sm:text-xl">💬</span> 카카오톡으로 결과 전송
+      <!-- 결과 조작 버튼 (글자 크기 및 높이 완벽 통일) -->
+      <div class="space-y-2 pt-1">
+        <button id="btnShareKakao" class="w-full py-3 rounded-xl bg-[#FEE500] hover:bg-[#FDD800] text-[#191919] font-black text-base flex items-center justify-center gap-2 shadow-lg active:scale-95 transition">
+          <span class="text-lg">💬</span> 카카오톡으로 결과 전송
         </button>
-        <button id="btnPlayAgain" class="w-full py-2.5 sm:py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm sm:text-base active:scale-95 transition shadow">
+        <button id="btnPlayAgain" class="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base active:scale-95 transition shadow">
           🔄 대기실로 돌아가 한 판 더!
         </button>
-        <button id="btnLeaveResult" class="w-full py-2 sm:py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs sm:text-sm transition">
-          🚪 방 나가기
+        <button id="btnLeaveResult" class="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-black text-base active:scale-95 transition flex items-center justify-center gap-1.5 shadow">
+          <span>🚪</span> 방 나가기
         </button>
       </div>
     </section>
