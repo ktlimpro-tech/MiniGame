@@ -727,19 +727,27 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isMyTurn) {
       window.soundFx.playTurn();
       window.soundFx.vibrate(25);
-      els.turnAlertBox.className = 'text-center p-3 rounded-2xl bg-emerald-950/80 border-2 border-emerald-500 transition shadow-lg';
-      els.currentTurnName.textContent = '👉 당신의 차례입니다!';
-      els.currentTurnName.className = 'text-2xl font-black text-emerald-300 animate-bounce mt-0.5';
-      els.turnNoticeSub.textContent = '⚠️ 신중하게 이빨 하나를 터치하세요!';
-      els.turnNoticeSub.className = 'text-xs text-emerald-200 font-bold mt-1';
-      els.gameGuideBanner.textContent = '당신의 손에 운명이 걸려 있습니다!';
+      if (els.turnAlertBox) els.turnAlertBox.className = 'text-center p-3 rounded-2xl bg-emerald-950/80 border-2 border-emerald-500 transition shadow-lg';
+      if (els.currentTurnName) {
+        els.currentTurnName.textContent = '👉 당신의 차례입니다!';
+        els.currentTurnName.className = 'text-2xl font-black text-emerald-300 animate-bounce mt-0.5';
+      }
+      if (els.turnNoticeSub) {
+        els.turnNoticeSub.textContent = '⚠️ 신중하게 이빨 하나를 터치하세요!';
+        els.turnNoticeSub.className = 'text-xs text-emerald-200 font-bold mt-1';
+      }
+      if (els.gameGuideBanner) els.gameGuideBanner.textContent = '당신의 손에 운명이 걸려 있습니다!';
     } else {
-      els.turnAlertBox.className = 'text-center p-3 rounded-2xl bg-slate-800 border border-slate-700 transition';
-      els.currentTurnName.textContent = `${state.currentTurnNickname} 차례 대기 중...`;
-      els.currentTurnName.className = 'text-xl font-bold text-amber-300 mt-0.5';
-      els.turnNoticeSub.textContent = '악어가 입을 벌리고 기다리고 있습니다...';
-      els.turnNoticeSub.className = 'text-xs text-slate-400 font-semibold mt-1';
-      els.gameGuideBanner.textContent = `${state.currentTurnNickname}님이 이빨을 고르고 있습니다.`;
+      if (els.turnAlertBox) els.turnAlertBox.className = 'text-center p-3 rounded-2xl bg-slate-800 border border-slate-700 transition';
+      if (els.currentTurnName) {
+        els.currentTurnName.textContent = `${state.currentTurnNickname} 차례 대기 중...`;
+        els.currentTurnName.className = 'text-xl font-bold text-amber-300 mt-0.5';
+      }
+      if (els.turnNoticeSub) {
+        els.turnNoticeSub.textContent = '악어가 입을 벌리고 기다리고 있습니다...';
+        els.turnNoticeSub.className = 'text-xs text-slate-400 font-semibold mt-1';
+      }
+      if (els.gameGuideBanner) els.gameGuideBanner.textContent = `${state.currentTurnNickname}님이 이빨을 고르고 있습니다.`;
     }
 
     // 이빨 렌더링
@@ -837,12 +845,20 @@ ${window.location.origin}`;
     };
   }
 
-  // 소켓 재연결 시 방 자동 재참가
+  // 소켓 재연결 시 방 자동 재참가 및 진행 상태 자동 동기화
   socket.on('connect', () => {
     if (currentRoom && myToken) {
       window.socketManager.rejoinRoom(currentRoom.id, myToken, (res) => {
-        if (res && res.success) {
-          console.log('[Socket] Rejoin room success:', currentRoom.id);
+        if (res && res.success && res.room) {
+          console.log('[Socket] Rejoin room success:', currentRoom.id, res.room.status);
+          currentRoom = res.room;
+          if (res.room.status === 'PLAYING') {
+            showView('game');
+            try { renderCrocodileGame(res.room); } catch (e) {}
+          } else if (res.room.status === 'LOBBY') {
+            renderLobby(res.room);
+            showView('lobby');
+          }
         }
       });
     }
@@ -859,9 +875,14 @@ ${window.location.origin}`;
   });
 
   socket.on('gameStarted', (room) => {
+    console.log('[Socket] gameStarted received:', room);
     currentRoom = room;
-    renderCrocodileGame(room);
     showView('game');
+    try {
+      renderCrocodileGame(room);
+    } catch (e) {
+      console.error('[Error] renderCrocodileGame failed:', e);
+    }
   });
 
   // 관전자 실시간 리액션 수신 (본인 발송분은 이미 로컬에서 낙관적 렌더링했으므로 중복 제외)
@@ -875,12 +896,17 @@ ${window.location.origin}`;
   socket.on('toothPressed', (data) => {
     console.log('[Socket] toothPressed received:', data);
     currentRoom = data.room;
+    showView('game');
     try {
       window.soundFx.playSafe();
     } catch (e) {
       console.warn('playSafe error:', e);
     }
-    renderCrocodileGame(data.room);
+    try {
+      renderCrocodileGame(data.room);
+    } catch (e) {
+      console.error('[Error] renderCrocodileGame on toothPressed:', e);
+    }
   });
 
   // 꽝 이빨을 누르거나 시간 초과로 악어가 쾅 물었을 때
