@@ -52,6 +52,20 @@ class Room {
     return this.players.filter(p => p.isConnected).length;
   }
 
+  generateUniqueNickname(desiredNickname) {
+    const raw = (desiredNickname || '').trim() || `참가자${this.players.length + 1}`;
+    const base = raw.replace(/\(\d+\)$/, '').trim();
+    const existingNames = new Set(this.players.map(p => p.nickname));
+    if (!existingNames.has(raw)) {
+      return raw;
+    }
+    let counter = 2;
+    while (existingNames.has(`${base}(${counter})`)) {
+      counter++;
+    }
+    return `${base}(${counter})`;
+  }
+
   addOrReconnectPlayer(socketId, nickname, token = null) {
     this.touch();
     if (token) {
@@ -71,11 +85,12 @@ class Room {
       return { success: false, error: '방 최대 인원(10명)이 가득 찼습니다.' };
     }
 
+    const uniqueNickname = this.generateUniqueNickname(nickname);
     const newToken = crypto.randomUUID();
     const newPlayer = {
       token: newToken,
       socketId,
-      nickname: nickname || `참가자${this.players.length + 1}`,
+      nickname: uniqueNickname,
       isHost: false,
       isConnected: true,
       joinedAt: Date.now()

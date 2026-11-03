@@ -9,12 +9,22 @@ class CrocodileGame {
   }
 
   init() {
-    this.teethCount = Math.max(10, this.room.players.length * 3); // 인원수에 맞춰 이빨 갯수 조정
+    const playerCount = this.room.players.length;
+    // 모바일 한 화면(스크롤 없음)에 쏙 들어오도록 10~16개 캡 적용
+    if (playerCount <= 3) {
+      this.teethCount = 10; // 2~3인: 10개 (4x3 그리드)
+    } else if (playerCount <= 5) {
+      this.teethCount = 12; // 4~5인: 12개 (4x3 그리드)
+    } else {
+      this.teethCount = 16; // 6인 이상 최대: 16개 (4x4 그리드)
+    }
+
     this.trapIndex = Math.floor(Math.random() * this.teethCount);
     this.pressedTeeth = [];
-    this.turnPlayerIndex = 0;
+    // 첫 번째 턴을 랜덤으로 추첨하여 매 판 공평한 기회 부여
+    this.turnPlayerIndex = Math.floor(Math.random() * playerCount);
     this.loserPlayer = null;
-    console.log(`[Crocodile] Initialized with ${this.teethCount} teeth. Trap index: ${this.trapIndex}`);
+    console.log(`[Crocodile] Initialized with ${this.teethCount} teeth (players: ${playerCount}). Trap: ${this.trapIndex}, First turn: ${this.getCurrentPlayer().nickname}`);
   }
 
   getCurrentPlayer() {

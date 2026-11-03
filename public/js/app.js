@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     roomBadge: document.getElementById('roomBadge'),
     displayRoomCode: document.getElementById('displayRoomCode'),
     btnSoundToggle: document.getElementById('btnSoundToggle'),
+    btnLeaveRoomHeader: document.getElementById('btnLeaveRoomHeader'),
 
     // Views
     viewHome: document.getElementById('viewHome'),
@@ -64,6 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
     resultPenaltyText: document.getElementById('resultPenaltyText'),
     btnShareKakao: document.getElementById('btnShareKakao'),
     btnPlayAgain: document.getElementById('btnPlayAgain'),
+    btnLeaveResult: document.getElementById('btnLeaveResult'),
 
     // Modal
     modalInvite: document.getElementById('modalInvite'),
@@ -97,15 +99,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (viewName === 'home') {
       els.viewHome.classList.remove('hidden');
       els.roomBadge.classList.add('hidden');
-    } else if (viewName === 'lobby') {
-      els.viewLobby.classList.remove('hidden');
+      if (els.btnLeaveRoomHeader) els.btnLeaveRoomHeader.classList.add('hidden');
+    } else {
+      if (viewName === 'lobby') els.viewLobby.classList.remove('hidden');
+      else if (viewName === 'game') els.viewGame.classList.remove('hidden');
+      else if (viewName === 'result') els.viewResult.classList.remove('hidden');
+
       els.roomBadge.classList.remove('hidden');
-    } else if (viewName === 'game') {
-      els.viewGame.classList.remove('hidden');
-      els.roomBadge.classList.remove('hidden');
-    } else if (viewName === 'result') {
-      els.viewResult.classList.remove('hidden');
-      els.roomBadge.classList.remove('hidden');
+      if (els.btnLeaveRoomHeader) els.btnLeaveRoomHeader.classList.remove('hidden');
     }
   }
 
@@ -320,9 +321,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 5. 방 나가기
-  els.btnLeaveLobby.addEventListener('click', () => {
+  // 5. 방 나가기 (공통 처리 함수)
+  function handleLeaveRoom() {
     if (!currentRoom) return;
+    const me = currentRoom.players.find(p => p.token === myToken);
+    const isHost = me && me.isHost;
+
+    const confirmMsg = isHost
+      ? '방장이 방을 나가면 방 전체가 해산됩니다.\n정말 나가시겠습니까?'
+      : '정말 방에서 나가시겠습니까?';
+
+    if (!confirm(confirmMsg)) return;
+
     const exitRoomId = currentRoom.id;
     window.socketManager.leaveRoom(exitRoomId, myToken, () => {
       clearSessionToken(exitRoomId);
@@ -330,7 +340,11 @@ document.addEventListener('DOMContentLoaded', () => {
       myToken = null;
       showView('home');
     });
-  });
+  }
+
+  if (els.btnLeaveLobby) els.btnLeaveLobby.addEventListener('click', handleLeaveRoom);
+  if (els.btnLeaveRoomHeader) els.btnLeaveRoomHeader.addEventListener('click', handleLeaveRoom);
+  if (els.btnLeaveResult) els.btnLeaveResult.addEventListener('click', handleLeaveRoom);
 
   // 6. 대기실 렌더링
   function renderLobby(room) {

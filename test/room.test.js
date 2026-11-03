@@ -72,4 +72,21 @@ describe('🏠 공통 Room 라이프사이클 및 설정 테스트', () => {
     assert.strictEqual(joinRes3.success, true);
     assert.strictEqual(room.players.length, 3);
   });
+
+  it('중복된 닉네임으로 입장 시 (2), (3) 번호가 자동으로 부여되어야 한다', () => {
+    // 이미 '방장김철수'가 있음
+    const res1 = room.addOrReconnectPlayer('socket-2', '방장김철수');
+    assert.strictEqual(res1.success, true);
+    assert.strictEqual(res1.player.nickname, '방장김철수(2)');
+
+    // 한 번 더 동일 닉네임 입장
+    const res2 = room.addOrReconnectPlayer('socket-3', '방장김철수');
+    assert.strictEqual(res2.success, true);
+    assert.strictEqual(res2.player.nickname, '방장김철수(3)');
+
+    // 다른 닉네임 추가 후 중복 테스트
+    room.addOrReconnectPlayer('socket-4', '홍길동');
+    const res3 = room.addOrReconnectPlayer('socket-5', '홍길동');
+    assert.strictEqual(res3.player.nickname, '홍길동(2)');
+  });
 });
