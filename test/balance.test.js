@@ -40,11 +40,11 @@ describe('🤝 3호 밸런스 게임: 이심전심 밸런스 (BalanceGame) 단�
     });
   });
 
-  it('데이터베이스 검증: 85개 이상의 엄선된 밸런스 질문이 정상 로드되어야 한다', () => {
+  it('데이터베이스 검증: 300개의 엄선된 밸런스 질문이 정상 로드되어야 한다', () => {
     room2p.startGame();
     const game = room2p.activeGame;
     assert.ok(game instanceof BalanceGame);
-    assert.ok(game.questionsPool.length >= 85, `질문 개수 부족: ${game.questionsPool.length}`);
+    assert.strictEqual(game.questionsPool.length, 300, `질문 개수 불일치: ${game.questionsPool.length}`);
     assert.ok(game.currentQuestion.id);
     assert.ok(game.currentQuestion.question);
     assert.ok(game.currentQuestion.optionA);
