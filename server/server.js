@@ -2,9 +2,13 @@ const express = require('express');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
+const config = require('./config');
 const RoomManager = require('./models/RoomManager');
 
 const app = express();
+// Render.com 및 리버스 프록시 뒤에서 실제 클라이언트 IP 추출을 위해 필수 설정
+app.set('trust proxy', 1);
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -13,21 +17,60 @@ const io = new Server(server, {
   }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = config.PORT;
 const roomManager = new RoomManager(io);
 
 // 정적 파일 서빙 (public)
 app.use(express.static(path.join(__dirname, '../public')));
 app.use(express.json());
 
-// 헬스체크 API
+// 클라이언트 실제 IP 추출 유틸리티 (Render 로드밸런서 프록시 헤더 완벽 지원)
+function getClientIp(reqOrSocket) {
+  const headers = reqOrSocket.headers || (reqOrSocket.handshake && reqOrSocket.handshake.headers) || {};
+  const forwarded = headers['x-forwarded-for'];
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+  return reqOrSocket.ip || (reqOrSocket.handshake && reqOrSocket.handshake.address) || '127.0.0.1';
+}
+
+// 1. Render.com 무중단 헬스체크 엔드포인트
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: Date.now() });
+  res.json({
+    status: 'ok',
+    uptimeSec: Math.floor(process.uptime()),
+    activeRooms: roomManager.rooms.size,
+    maxRooms: roomManager.MAX_ROOMS,
+    timestamp: Date.now()
+  });
 });
 
-// 관리자 통계 API
+// 2. 관리자 통계 및 모니터링 API (보안 2중 검증: IP 화이트리스트 + 비밀번호)
 app.get('/api/admin/stats', (req, res) => {
-  res.json(roomManager.getStats());
+  const clientIp = getClientIp(req);
+  const isWhitelisted = config.ADMIN_WHITELIST_IPS.includes(clientIp);
+
+  // 비밀번호 검증 (헤더 x-admin-password 또는 쿼리 password)
+  const reqPassword = req.headers['x-admin-password'] || req.query.password;
+  const isPasswordValid = config.ADMIN_PASSWORD && reqPassword === config.ADMIN_PASSWORD;
+
+  // IP 화이트리스트에 있거나, 유효한 관리자 비밀번호를 제공한 경우에만 접근 허용
+  if (!isWhitelisted && !isPasswordValid) {
+    console.warn(`[Security] 비인가 관리자 통계 접근 차단: IP=${clientIp}`);
+    return res.status(403).json({
+      error: '접근이 거부되었습니다. (관리자 권한 필요)',
+      clientIp
+    });
+  }
+
+  res.json({
+    ...roomManager.getStats(),
+    server: {
+      uptimeSec: Math.floor(process.uptime()),
+      memoryUsageMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
+      nodeEnv: config.NODE_ENV
+    }
+  });
 });
 
 // 방에 속한 모든 플레이어에게 100% 안전하게 브로드캐스트하는 헬퍼 함수
@@ -54,7 +97,7 @@ function broadcastToRoom(roomId, eventName, data) {
 
 // Socket.io 실시간 이벤트 라우팅
 io.on('connection', (socket) => {
-  const clientIp = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
+  const clientIp = getClientIp(socket);
 
   // 1. NTP 서버 시각 동기화
   socket.on('syncTime', (clientSendTime, callback) => {
@@ -66,7 +109,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 2. 방 생성 (Rate Limiting 적용)
+  // 2. 방 생성 (Rate Limiting 및 20개 상한 적용)
   socket.on('createRoom', ({ nickname, settings }, callback) => {
     const result = roomManager.createRoom(socket.id, nickname, settings, clientIp);
     if (result.success) {
@@ -75,9 +118,9 @@ io.on('connection', (socket) => {
     if (typeof callback === 'function') callback(result);
   });
 
-  // 3. 방 참가
+  // 3. 방 참가 (브루트포스 방어 적용)
   socket.on('joinRoom', ({ roomCode, nickname, token }, callback) => {
-    const result = roomManager.joinRoom(socket.id, roomCode, nickname, token);
+    const result = roomManager.joinRoom(socket.id, roomCode, nickname, token, clientIp);
     if (result.success) {
       socket.join(result.room.id);
       broadcastToRoom(result.room.id, 'roomUpdated', result.room);

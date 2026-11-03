@@ -1,6 +1,7 @@
 const { describe, it, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const Room = require('../server/models/Room');
+const RoomManager = require('../server/models/RoomManager');
 
 describe('🏠 공통 Room 라이프사이클 및 설정 테스트', () => {
   let room;
@@ -97,5 +98,74 @@ describe('🏠 공통 Room 라이프사이클 및 설정 테스트', () => {
     assert.strictEqual(updateRes.success, true);
     assert.strictEqual(room.settings.roles[0], '아이스크림 쏘기 🍦');
     assert.strictEqual(updateRes.room.settings.roles[0], '아이스크림 쏘기 🍦');
+  });
+});
+
+describe('🛡️ RoomManager 보안, 20개 방 상한선 및 인메모리 GC 테스트', () => {
+  let rm;
+
+  beforeEach(() => {
+    rm = new RoomManager(null);
+    rm.MAX_ROOMS = 20;
+  });
+
+  it('방 개설은 최대 20개까지만 허용되고, 21번째는 차단되어야 한다', () => {
+    // 20개 방 생성
+    for (let i = 0; i < 20; i++) {
+      const res = rm.createRoom(`socket-${i}`, `방장${i}`, {}, '127.0.0.1');
+      assert.strictEqual(res.success, true);
+    }
+    assert.strictEqual(rm.rooms.size, 20);
+
+    // 21번째 방 생성 시도 -> 차단
+    const failRes = rm.createRoom('socket-21', '방장21', {}, '127.0.0.1');
+    assert.strictEqual(failRes.success, false);
+    assert.ok(failRes.error.includes('가득 찼습니다'));
+  });
+
+  it('방이 소멸(destroy)되면 즉시 카운트가 감소하여 새 방을 생성할 수 있어야 한다', () => {
+    // 20개 생성
+    let firstCode = null;
+    for (let i = 0; i < 20; i++) {
+      const res = rm.createRoom(`socket-${i}`, `방장${i}`, {}, '127.0.0.1');
+      if (i === 0) firstCode = res.room.id;
+    }
+    assert.strictEqual(rm.rooms.size, 20);
+
+    // 1개 방 소멸(GC)
+    rm.destroyRoom(firstCode, 'test_cleanup');
+    assert.strictEqual(rm.rooms.size, 19);
+
+    // 이제 20번째 방 다시 생성 가능
+    const newRes = rm.createRoom('socket-new', '새방장', {}, '127.0.0.1');
+    assert.strictEqual(newRes.success, true);
+    assert.strictEqual(rm.rooms.size, 20);
+  });
+
+  it('동일 비-화이트리스트 IP에서 1분당 2개 초과 방 생성 시 차단되어야 한다', () => {
+    const testIp = '203.0.113.195'; // 외부 IP 시뮬레이션
+    const res1 = rm.createRoom('s1', '유저1', {}, testIp);
+    assert.strictEqual(res1.success, true);
+
+    const res2 = rm.createRoom('s2', '유저2', {}, testIp);
+    assert.strictEqual(res2.success, true);
+
+    // 3번째 시도 -> Rate Limit 차단
+    const res3 = rm.createRoom('s3', '유저3', {}, testIp);
+    assert.strictEqual(res3.success, false);
+    assert.ok(res3.error.includes('너무 빈번합니다'));
+  });
+
+  it('존재하지 않는 방 코드를 연속 5회 틀리면 브루트포스 방어로 1분간 차단되어야 한다', () => {
+    const testIp = '203.0.113.88';
+    for (let i = 0; i < 5; i++) {
+      const res = rm.joinRoom(`s-${i}`, 'XXXX', '참가자', null, testIp);
+      assert.strictEqual(res.success, false);
+    }
+
+    // 6번째 시도 시 브루트포스 차단 에러 발생
+    const blockRes = rm.joinRoom('s-blocked', 'XXXX', '참가자', null, testIp);
+    assert.strictEqual(blockRes.success, false);
+    assert.ok(blockRes.error.includes('보안을 위해 1분 후 다시 시도'));
   });
 });

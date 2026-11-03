@@ -1,4 +1,5 @@
 const Room = require('./Room');
+const config = require('../config');
 
 class RoomManager {
   constructor(io) {
@@ -6,15 +7,17 @@ class RoomManager {
     this.rooms = new Map(); // roomCode -> Room
     this.socketToRoom = new Map(); // socketId -> { roomCode, token }
     this.ipCreationTracker = new Map(); // ip -> [timestamp]
-    this.ipWhitelist = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+    this.ipFailedJoinTracker = new Map(); // ip -> [timestamp] (브루트포스 방어)
 
-    this.MAX_ROOMS = 20;
-    this.GC_INTERVAL_MS = 15000; // 15초마다 유휴 검사
-    this.EMPTY_ROOM_TIMEOUT_MS = 60 * 1000; // 전원 이탈 시 1분 유예 후 폭파
-    this.LOBBY_IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 대기실 마지막 활동 후 5분 유휴 시 폭파
-    this.RESULT_IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 결과 화면 종료 후 10분 유휴 시 폭파
-    this.PLAYING_IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 인게임 잠수 5분 유휴 시 폭파
-    this.EMERGENCY_TIMEOUT_MS = 30 * 60 * 1000; // 비상 30분 무조작 시 폭파
+    this.ipWhitelist = new Set(config.ADMIN_WHITELIST_IPS);
+
+    this.MAX_ROOMS = config.GAME.MAX_ROOMS;
+    this.GC_INTERVAL_MS = config.GAME.GC_INTERVAL_MS;
+    this.EMPTY_ROOM_TIMEOUT_MS = config.GAME.EMPTY_ROOM_TIMEOUT_MS;
+    this.LOBBY_IDLE_TIMEOUT_MS = config.GAME.LOBBY_IDLE_TIMEOUT_MS;
+    this.RESULT_IDLE_TIMEOUT_MS = config.GAME.RESULT_IDLE_TIMEOUT_MS;
+    this.PLAYING_IDLE_TIMEOUT_MS = config.GAME.PLAYING_IDLE_TIMEOUT_MS;
+    this.EMERGENCY_TIMEOUT_MS = config.GAME.EMERGENCY_TIMEOUT_MS;
 
     this.startGarbageCollector();
   }
@@ -35,19 +38,46 @@ class RoomManager {
     if (this.ipWhitelist.has(ip)) return true;
     const now = Date.now();
     const timestamps = this.ipCreationTracker.get(ip) || [];
-    const recent = timestamps.filter(t => now - t < 60000);
-    if (recent.length >= 2) return false;
+    const recent = timestamps.filter(t => now - t < config.RATE_LIMIT.WINDOW_MS);
+    if (recent.length >= config.RATE_LIMIT.MAX_ROOMS_PER_IP) return false;
     recent.push(now);
     this.ipCreationTracker.set(ip, recent);
     return true;
   }
 
+  checkFailedJoinLimit(ip) {
+    if (this.ipWhitelist.has(ip)) return true;
+    const now = Date.now();
+    const timestamps = this.ipFailedJoinTracker.get(ip) || [];
+    const recent = timestamps.filter(t => now - t < config.RATE_LIMIT.WINDOW_MS);
+    if (recent.length >= config.RATE_LIMIT.MAX_FAILED_JOINS_PER_IP) return false;
+    return true;
+  }
+
+  recordFailedJoin(ip) {
+    if (!ip || this.ipWhitelist.has(ip)) return;
+    const now = Date.now();
+    const timestamps = this.ipFailedJoinTracker.get(ip) || [];
+    const recent = timestamps.filter(t => now - t < config.RATE_LIMIT.WINDOW_MS);
+    recent.push(now);
+    this.ipFailedJoinTracker.set(ip, recent);
+  }
+
   createRoom(socketId, hostNickname, settings = {}, clientIp = '') {
+    // 1. 방 개설 개수 20개 절대 상한선 (21번째부터는 대기 및 차단)
     if (this.rooms.size >= this.MAX_ROOMS) {
-      return { success: false, error: '서버 수용 한도(20개 방)를 초과했습니다. 잠시 후 다시 시도해주세요.' };
+      return {
+        success: false,
+        error: `현재 서버의 최대 활성 방(${this.MAX_ROOMS}개)이 가득 찼습니다. 잠시 후 다른 방이 종료되면 다시 시도해주세요.`
+      };
     }
+
+    // 2. 외부 해킹/스크립트 방 생성 폭탄 차단 (IP당 1분 최대 2개)
     if (!this.checkRateLimit(clientIp)) {
-      return { success: false, error: '방 생성이 너무 빈번합니다. 1분 후에 다시 시도해주세요.' };
+      return {
+        success: false,
+        error: '방 생성이 너무 빈번합니다. 보안을 위해 1분 후에 다시 시도해주세요.'
+      };
     }
 
     const roomCode = this.generateRoomCode();
@@ -57,6 +87,8 @@ class RoomManager {
     const host = room.getHost();
     this.socketToRoom.set(socketId, { roomCode, token: host.token });
 
+    console.log(`[RoomManager] 방 생성됨: ${roomCode} (현재 활성 방: ${this.rooms.size}/${this.MAX_ROOMS})`);
+
     return {
       success: true,
       room: room.toState(),
@@ -65,10 +97,20 @@ class RoomManager {
     };
   }
 
-  joinRoom(socketId, roomCode, nickname, token = null) {
-    const room = this.rooms.get(roomCode.toUpperCase());
+  joinRoom(socketId, roomCode, nickname, token = null, clientIp = '') {
+    // 3. 방 코드 무차별 대입(Brute-force) 공격 차단
+    if (!this.checkFailedJoinLimit(clientIp)) {
+      return {
+        success: false,
+        error: '존재하지 않는 방 코드를 너무 많이 입력했습니다. 보안을 위해 1분 후 다시 시도해주세요.'
+      };
+    }
+
+    const code = roomCode ? roomCode.toUpperCase().trim() : '';
+    const room = this.rooms.get(code);
     if (!room) {
-      return { success: false, error: '존재하지 않는 방입니다.' };
+      this.recordFailedJoin(clientIp);
+      return { success: false, error: '존재하지 않는 방입니다. 코드를 다시 확인해주세요.' };
     }
 
     const result = room.addOrReconnectPlayer(socketId, nickname, token);
@@ -146,15 +188,23 @@ class RoomManager {
     if (room) {
       room.destroy();
       this.rooms.delete(roomCode);
+
+      // 소켓과 방의 매핑도 안전하게 정리 (메모리 완전 소멸 보장)
+      for (const [socketId, mapping] of this.socketToRoom.entries()) {
+        if (mapping && mapping.roomCode === roomCode) {
+          this.socketToRoom.delete(socketId);
+        }
+      }
+
       if (this.io) {
         this.io.to(roomCode).emit('roomDestroyed', { reason });
       }
-      console.log(`[GC] 방(${roomCode})이 완전히 소멸되었습니다. (사유: ${reason})`);
+      console.log(`[GC] 방(${roomCode})이 완전히 소멸되었습니다. (사유: ${reason}) 현재 방 개수: ${this.rooms.size}/${this.MAX_ROOMS}`);
     }
   }
 
   startGarbageCollector() {
-    setInterval(() => {
+    this.gcTimer = setInterval(() => {
       const now = Date.now();
       for (const [code, room] of this.rooms.entries()) {
         const idleTime = now - room.lastActivityAt;
@@ -191,6 +241,18 @@ class RoomManager {
         }
       }
     }, this.GC_INTERVAL_MS);
+
+    // Node.js 이벤트 루프 블로킹 방지 (테스트 러너 및 정상 종료 지원)
+    if (this.gcTimer && typeof this.gcTimer.unref === 'function') {
+      this.gcTimer.unref();
+    }
+  }
+
+  stopGarbageCollector() {
+    if (this.gcTimer) {
+      clearInterval(this.gcTimer);
+      this.gcTimer = null;
+    }
   }
 
   getStats() {
