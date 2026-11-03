@@ -883,12 +883,25 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     };
 
-    // 대기실로 리셋 버튼
-    els.btnPlayAgain.onclick = () => {
-      window.socketManager.resetToLobby(currentRoom.id, myToken, (res) => {
-        if (!res || !res.success) showAlert(res ? res.error : '대기실 복귀에 실패했습니다.', { title: '복귀 실패', icon: '⚠️' });
-      });
-    };
+    // 대기실로 리셋 버튼 (방장만 활성화, 일반 참가자는 대기 상태로 직관적 비활성화)
+    const me = currentRoom && currentRoom.players ? currentRoom.players.find(p => p.token === myToken) : null;
+    const isHost = me && me.isHost;
+
+    if (isHost) {
+      els.btnPlayAgain.disabled = false;
+      els.btnPlayAgain.textContent = '🔄 대기실로 돌아가 한 판 더!';
+      els.btnPlayAgain.className = 'w-full py-2.5 sm:py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm sm:text-base active:scale-95 transition shadow cursor-pointer';
+      els.btnPlayAgain.onclick = () => {
+        window.socketManager.resetToLobby(currentRoom.id, myToken, (res) => {
+          if (!res || !res.success) showAlert(res ? res.error : '대기실 복귀에 실패했습니다.', { title: '복귀 실패', icon: '⚠️' });
+        });
+      };
+    } else {
+      els.btnPlayAgain.disabled = true;
+      els.btnPlayAgain.textContent = '⏳ 방장이 다음 판 준비 중...';
+      els.btnPlayAgain.className = 'w-full py-2.5 sm:py-3.5 rounded-xl bg-slate-800/80 border border-slate-700/80 text-slate-500 font-bold text-sm sm:text-base cursor-not-allowed opacity-80 select-none';
+      els.btnPlayAgain.onclick = null;
+    }
   }
 
   // 소켓 재연결 시 방 자동 재참가 및 진행 상태 자동 동기화
@@ -904,6 +917,10 @@ document.addEventListener('DOMContentLoaded', () => {
           } else if (res.room.status === 'LOBBY') {
             renderLobby(res.room);
             showView('lobby');
+          } else if (res.room.status === 'RESULT') {
+            const loser = (res.room.gameResults && res.room.gameResults.find(r => r.isLoser)) || null;
+            renderResult({ loser, room: res.room });
+            showView('result');
           }
         }
       });
