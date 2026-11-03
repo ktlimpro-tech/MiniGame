@@ -553,13 +553,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function startClientTurnTimer(turnExpiresAt, totalSec = 5, isMyTurn = false) {
     clearClientTurnTimer();
-    if (!turnExpiresAt) return;
 
-    activeTurnExpiresAt = turnExpiresAt;
+    // 혹시라도 서버 만료시각이 누락된 경우를 대비한 안전 폴백
+    const validExpiresAt = turnExpiresAt || (window.socketManager.getSyncedNow() + totalSec * 1000);
+
+    activeTurnExpiresAt = validExpiresAt;
     activeTurnTotalSec = totalSec;
     activeTurnIsMyTurn = isMyTurn;
 
     const totalMs = totalSec * 1000;
+    console.log(`[Timer] Started. Total: ${totalSec}s, ExpiresAt: ${validExpiresAt}, CurrentSynced: ${window.socketManager.getSyncedNow()}, Diff: ${(validExpiresAt - window.socketManager.getSyncedNow()).toFixed(0)}ms`);
 
     const updateTimer = () => {
       if (!activeTurnExpiresAt) return;

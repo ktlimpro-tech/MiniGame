@@ -31,7 +31,9 @@ class CrocodileGame {
     this.turnPlayerIndex = Math.floor(Math.random() * playerCount);
     this.loserPlayer = null;
     this.clearTurnTimer();
-    console.log(`[Crocodile] Initialized with ${this.teethCount} teeth (players: ${playerCount}). Trap: ${this.trapIndex}, First turn: ${this.getCurrentPlayer()?.nickname}`);
+    // 게임 시작 시 즉시 첫 번째 턴 만료 시각(현재 시각 + 5초) 초기화
+    this.turnExpiresAt = Date.now() + (this.turnTimeoutSec * 1000);
+    console.log(`[Crocodile] Initialized with ${this.teethCount} teeth (players: ${playerCount}). Trap: ${this.trapIndex}, First turn: ${this.getCurrentPlayer()?.nickname}, expires: ${this.turnExpiresAt}`);
   }
 
   getCurrentPlayer() {
@@ -166,6 +168,8 @@ class CrocodileGame {
 
       // 안전한 이빨을 눌렀을 때 ➔ 다음 사람으로 턴 넘기기
       this.turnPlayerIndex = (this.turnPlayerIndex + 1) % this.room.players.length;
+      // 다음 차례 플레이어의 5초 타이머 만료 시각 즉시 갱신 (상태 스냅샷 동기화 보장)
+      this.turnExpiresAt = Date.now() + (this.turnTimeoutSec * 1000);
 
       return {
         success: true,

@@ -4,8 +4,10 @@
 class SocketManager {
   constructor() {
     this.socket = null;
-    this.serverTimeOffset = 0; // 서버와의 밀리초 시각 차이
-    this.isSynced = false;
+    // 이전 세션에서 저장된 시간 오프셋이 있으면 초기값으로 복원 (새로고침 시 0ms 튀는 현상 원천 방지)
+    const cachedOffset = parseFloat(sessionStorage.getItem('minigame_time_offset') || '0');
+    this.serverTimeOffset = isNaN(cachedOffset) ? 0 : cachedOffset;
+    this.isSynced = !isNaN(cachedOffset) && cachedOffset !== 0;
   }
 
   connect() {
@@ -45,16 +47,24 @@ class SocketManager {
           const latency = rtt / 2;
           const offset = res.serverTime + latency - t3;
           samples.push({ rtt, offset });
+
+          // 첫 번째 샘플 도착 즉시 1차 오프셋으로 반영하여 초기 160ms 지연 시간 해소
+          if (index === 0 && !this.isSynced) {
+            this.serverTimeOffset = offset;
+          }
         }
 
         if (index < maxSamples - 1) {
-          setTimeout(() => takeSample(index + 1), 80);
+          setTimeout(() => takeSample(index + 1), 60);
         } else if (samples.length > 0) {
           // 지터(네트워크 튐) 배제를 위해 RTT(왕복 지연시간)가 가장 작은 최적 샘플 채택
           samples.sort((a, b) => a.rtt - b.rtt);
           const best = samples[0];
           this.serverTimeOffset = best.offset;
           this.isSynced = true;
+          try {
+            sessionStorage.setItem('minigame_time_offset', String(this.serverTimeOffset));
+          } catch (e) {}
           console.log(`[NTP Sync Complete] 정밀 오프셋 확정: ${this.serverTimeOffset.toFixed(1)}ms (최소 RTT: ${best.rtt}ms)`);
           if (callback) callback(this.serverTimeOffset);
         }

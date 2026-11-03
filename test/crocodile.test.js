@@ -98,4 +98,22 @@ describe('🐊 1호 게임: 악어 이빨 (CrocodileGame) 단위 테스트', () 
     assert.strictEqual(room.status, 'RESULT');
     assert.strictEqual(room.gameResults.find(r => r.token === currentTurn.token).isLoser, true);
   });
+
+  it('게임 시작 및 턴 전환 시 turnExpiresAt이 항상 5초 뒤 미래 시각으로 즉시 갱신되어야 한다', () => {
+    const now = Date.now();
+    // 1) 게임 시작 시 초기 턴 만료 시각 검증
+    assert.ok(game.turnExpiresAt >= now + 4800, '초기 turnExpiresAt은 현재 시각보다 최소 4.8초 이상 미래여야 함');
+    assert.strictEqual(game.toState().turnExpiresAt, game.turnExpiresAt);
+
+    // 2) 안전한 이빨을 눌렀을 때 다음 턴 만료 시각 즉시 갱신 검증
+    let safeTooth = 0;
+    while (safeTooth === game.trapIndex) safeTooth++;
+
+    const currentTurn = game.getCurrentPlayer();
+    const pressRes = game.handleAction(currentTurn.token, 'pressTooth', { toothIndex: safeTooth });
+
+    assert.strictEqual(pressRes.success, true);
+    assert.ok(game.turnExpiresAt >= Date.now() + 4800, '턴 전환 후 turnExpiresAt은 새로운 5초 뒤 미래 시각이어야 함');
+    assert.strictEqual(pressRes.data.room.gameState.turnExpiresAt, game.turnExpiresAt);
+  });
 });

@@ -171,12 +171,15 @@ io.on('connection', (socket) => {
     const code = roomCode ? roomCode.toUpperCase() : '';
     const room = roomManager.rooms.get(code);
     const result = roomManager.startGame(roomCode, token);
-    if (result.success) {
-      if (room && room.activeGame) {
+    if (result.success && room) {
+      if (room.activeGame) {
         attachCrocodileTimer(room);
       }
-      broadcastToRoom(result.room.id, 'gameStarted', result.room);
-      console.log(`[GameStart] Room(${result.room.id}) started! First turn: ${result.room.gameState?.currentTurnNickname}`);
+      const freshRoom = room.toState();
+      broadcastToRoom(freshRoom.id, 'gameStarted', freshRoom);
+      console.log(`[GameStart] Room(${freshRoom.id}) started! First turn: ${freshRoom.gameState?.currentTurnNickname}, expires: ${freshRoom.gameState?.turnExpiresAt}`);
+      if (typeof callback === 'function') callback({ success: true, room: freshRoom });
+      return;
     }
     if (typeof callback === 'function') callback(result);
   });
@@ -203,14 +206,17 @@ io.on('connection', (socket) => {
         if (result.eventName === 'toothPressed') {
           // 안전한 이빨 ➔ 다음 사람 타이머 시작
           attachCrocodileTimer(room);
+          // 타이머가 새로 세팅된 최신 룸 상태로 data.room 갱신 (클라이언트에 이전 턴 잔여시간 전달 방지)
+          result.data.room = room.toState();
         } else if (result.eventName === 'gameFinished') {
           // 게임 종료 ➔ 타이머 정지
           room.activeGame.clearTurnTimer();
+          result.data.room = room.toState();
         }
       }
 
       broadcastToRoom(result.roomId, result.eventName || 'gameUpdated', result.data);
-      console.log(`[GameAction] Room(${result.roomId}) action: ${action}, event: ${result.eventName}, nextPlayer: ${result.data?.nextPlayer?.nickname || result.data?.loser?.nickname}`);
+      console.log(`[GameAction] Room(${result.roomId}) action: ${action}, event: ${result.eventName}, nextPlayer: ${result.data?.nextPlayer?.nickname || result.data?.loser?.nickname}, expires: ${result.data?.room?.gameState?.turnExpiresAt}`);
     }
     if (typeof callback === 'function') callback(result);
   });
