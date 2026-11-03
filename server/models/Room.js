@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const CrocodileGame = require('../games/crocodile');
+const TelepathyGame = require('../games/telepathy');
 
 class Room {
   constructor(roomCode, hostNickname, hostSocketId, customSettings = {}) {
@@ -136,6 +137,9 @@ class Room {
     if (this.settings.gameType === 'crocodile') {
       this.activeGame = new CrocodileGame(this);
       this.activeGame.init();
+    } else if (this.settings.gameType === 'telepathy') {
+      this.activeGame = new TelepathyGame(this);
+      this.activeGame.init();
     }
 
     return { success: true, room: this.toState() };
@@ -174,7 +178,7 @@ class Room {
     this.activeGame = null;
   }
 
-  toState() {
+  toState(targetToken = null) {
     return {
       id: this.id,
       status: this.status,
@@ -185,7 +189,7 @@ class Room {
         isHost: p.isHost,
         isConnected: p.isConnected
       })),
-      gameState: this.activeGame ? this.activeGame.toState() : null,
+      gameState: this.activeGame ? this.activeGame.toState(targetToken) : null,
       gameResults: this.gameResults || null
     };
   }

@@ -138,10 +138,29 @@ function broadcastToRoom(roomId, eventName, data) {
   if (!roomId) return;
   const room = roomManager.rooms.get(roomId);
 
-  // 1. 표준 소켓 룸 브로드캐스트
+  // 1. 2호 텔레파시 게임인 경우: 플레이어별 본인 비밀 카드(myCards)가 다르므로 개별 소켓 맞춤 전송
+  if (room && room.activeGame && room.settings.gameType === 'telepathy') {
+    for (const player of room.players) {
+      if (player.socketId) {
+        const s = io.sockets.sockets.get(player.socketId);
+        if (s) {
+          s.join(roomId);
+          const personalizedRoom = room.toState(player.token);
+          // data가 룸 객체 자체인 경우와, data.room이 들어있는 경우 모두 대응
+          const personalizedData = data && data.room
+            ? { ...data, room: personalizedRoom }
+            : personalizedRoom;
+          s.emit(eventName, personalizedData);
+        }
+      }
+    }
+    return;
+  }
+
+  // 2. 표준 소켓 룸 브로드캐스트
   io.to(roomId).emit(eventName, data);
 
-  // 2. 혹시라도 룸 조인이 풀린 소켓이 있다면 개별 소켓으로도 2중 직접 전달 보장
+  // 3. 혹시라도 룸 조인이 풀린 소켓이 있다면 개별 소켓으로도 2중 직접 전달 보장
   if (room && room.players) {
     for (const player of room.players) {
       if (player.socketId) {
@@ -199,7 +218,7 @@ io.on('connection', (socket) => {
         p.isConnected = true;
         socket.join(room.id);
         roomManager.socketToRoom.set(socket.id, { roomCode: room.id, token: p.token });
-        if (typeof callback === 'function') callback({ success: true, room: room.toState() });
+        if (typeof callback === 'function') callback({ success: true, room: room.toState(p.token) });
         return;
       }
     }

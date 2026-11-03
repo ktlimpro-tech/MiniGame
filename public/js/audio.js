@@ -230,7 +230,87 @@ class SoundEffects {
     } catch (e) {}
   }
 
-  // 8. 스마트폰 진동 (Haptics)
+  // 8. 텔레파시 카드 제출 촥! (Card Play)
+  playCardDrop() {
+    if (this.isMuted) return;
+    try {
+      this.init();
+      if (!this.ctx) return;
+
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(400, now);
+      osc.frequency.exponentialRampToValueAtTime(850, now + 0.12);
+
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.12);
+    } catch (e) {}
+  }
+
+  // 9. 하트 차감 (실수/충돌) 경고음
+  playHeartBreak() {
+    if (this.isMuted) return;
+    try {
+      this.init();
+      if (!this.ctx) return;
+
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(280, now);
+      osc.frequency.exponentialRampToValueAtTime(90, now + 0.25);
+
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.25);
+    } catch (e) {}
+  }
+
+  // 10. 미션 성공 승리 팡파레 (Victory Fanfare)
+  playVictory() {
+    if (this.isMuted) return;
+    try {
+      this.init();
+      if (!this.ctx) return;
+
+      const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
+      notes.forEach((freq, i) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const time = this.ctx.currentTime + (i * 0.1);
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, time);
+
+        gain.gain.setValueAtTime(0.2, time);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.25);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(time);
+        osc.stop(time + 0.25);
+      });
+    } catch (e) {}
+  }
+
+  // 11. 스마트폰 진동 (Haptics)
   vibrate(pattern) {
     if (navigator.vibrate) {
       try {

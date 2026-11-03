@@ -1,0 +1,136 @@
+const { describe, it, beforeEach } = require('node:test');
+const assert = require('node:assert/strict');
+const Room = require('../server/models/Room');
+const TelepathyGame = require('../server/games/telepathy');
+
+describe('🧠 2호 협동 게임: 침묵의 텔레파시 (TelepathyGame) 단위 테스트', () => {
+  let room;
+  let game;
+  let p1;
+  let p2;
+
+  beforeEach(() => {
+    room = new Room('TELE', '방장', 'socket-host');
+    room.updateSettings({
+      gameType: 'telepathy',
+      roles: ['커피 쏘기! ☕', '생존']
+    });
+    room.addOrReconnectPlayer('socket-player2', '영희');
+    p1 = room.players[0];
+    p2 = room.players[1];
+    room.startGame();
+    game = room.activeGame;
+  });
+
+  it('게임 시작 시 하트 3개와 각 플레이어별 고유 카드가 오름차순 정렬되어 지급되어야 한다', () => {
+    assert.ok(game instanceof TelepathyGame);
+    assert.strictEqual(game.hearts, 3);
+    assert.strictEqual(game.maxHearts, 3);
+    assert.strictEqual(game.status, 'PLAYING');
+
+    // 2인 플레이 시 1인당 기본 2장 = 총 4장
+    const cards1 = game.playerCards.get(p1.token);
+    const cards2 = game.playerCards.get(p2.token);
+    assert.strictEqual(cards1.length, 2);
+    assert.strictEqual(cards2.length, 2);
+
+    // 오름차순 정렬 검증
+    for (let i = 0; i < cards1.length - 1; i++) {
+      assert.ok(cards1[i] < cards1[i + 1]);
+    }
+    for (let i = 0; i < cards2.length - 1; i++) {
+      assert.ok(cards2[i] < cards2[i + 1]);
+    }
+
+    // 중복 카드 없음 검증
+    const allCards = [...cards1, ...cards2];
+    const uniqueCards = new Set(allCards);
+    assert.strictEqual(uniqueCards.size, allCards.length);
+  });
+
+  it('보안 검증: toState(targetToken)는 본인의 비밀 숫자만 노출하고 타인의 카드는 은닉해야 한다', () => {
+    const stateP1 = game.toState(p1.token);
+    const stateP2 = game.toState(p2.token);
+
+    // p1 시점에서는 p1의 myCards만 보임
+    assert.deepStrictEqual(stateP1.myCards, game.playerCards.get(p1.token));
+    // p1 시점에서 p2의 핸드 카드는 숫자 대신 장수(playerHandCounts)로만 노출
+    assert.strictEqual(stateP1.playerHandCounts[p2.token], 2);
+
+    // p2 시점에서는 p2의 myCards만 보임
+    assert.deepStrictEqual(stateP2.myCards, game.playerCards.get(p2.token));
+    assert.notDeepStrictEqual(stateP1.myCards, stateP2.myCards);
+  });
+
+  it('가장 작은 카드를 정상적으로 순서대로 낼 경우 성공적으로 처리되어야 한다', () => {
+    // 테스트용으로 패를 직접 설정
+    game.playerCards.set(p1.token, [10, 50]);
+    game.playerCards.set(p2.token, [20, 80]);
+
+    // p1이 10을 냄 (전체에서 가장 작음 -> 성공)
+    const res1 = game.handleAction(p1.token, 'playCard');
+    assert.strictEqual(res1.success, true);
+    assert.strictEqual(res1.data.mistake, false);
+    assert.strictEqual(res1.data.playedCard, 10);
+    assert.strictEqual(game.discardPile[game.discardPile.length - 1].number, 10);
+    assert.strictEqual(game.hearts, 3); // 하트 보존
+
+    // 남은 전체 카드 수 3개
+    assert.strictEqual(game.getTotalRemainingCards(), 3);
+  });
+
+  it('더 작은 카드를 가진 팀원이 있음에도 큰 카드를 먼저 내면 실수(하트 -1) 처리되고 작은 카드가 폐기되어야 한다', () => {
+    // p1: [50, 90], p2: [20, 80]
+    game.playerCards.set(p1.token, [50, 90]);
+    game.playerCards.set(p2.token, [20, 80]);
+
+    // p1이 50을 먼저 냄 (p2가 20을 쥐고 있었음!)
+    const res = game.handleAction(p1.token, 'playCard');
+    assert.strictEqual(res.success, true);
+    assert.strictEqual(res.eventName, 'telepathyCardPlayed');
+    assert.strictEqual(res.data.mistake, true);
+    assert.strictEqual(game.hearts, 2); // 하트 1개 깎임!
+    assert.strictEqual(res.data.skippedCards.length, 1);
+    assert.strictEqual(res.data.skippedCards[0].number, 20);
+
+    // 20은 건너뛰어졌으므로 p2의 손패에는 80만 남게 됨
+    assert.deepStrictEqual(game.playerCards.get(p2.token), [80]);
+  });
+
+  it('하트가 모두 소진되면 게임 오버(실패)가 되어야 한다', () => {
+    game.hearts = 1;
+    game.playerCards.set(p1.token, [90]);
+    game.playerCards.set(p2.token, [10]);
+
+    // p1이 실수 발생 -> 하트 0으로 소진
+    const res = game.handleAction(p1.token, 'playCard');
+    assert.strictEqual(res.success, true);
+    assert.strictEqual(game.hearts, 0);
+    assert.strictEqual(game.status, 'FAILED');
+    assert.strictEqual(res.data.isSuccess, false);
+    assert.strictEqual(room.status, 'RESULT');
+  });
+
+  it('모든 카드를 순서대로 다 냈을 때 협동 승리(대성공)가 되어야 한다', () => {
+    game.playerCards.set(p1.token, [10]);
+    game.playerCards.set(p2.token, [20]);
+
+    // 1) p1이 10 냄
+    game.handleAction(p1.token, 'playCard');
+    assert.strictEqual(game.status, 'PLAYING');
+
+    // 2) p2가 20 냄 -> 모든 카드 소진
+    const res2 = game.handleAction(p2.token, 'playCard');
+    assert.strictEqual(res2.success, true);
+    assert.strictEqual(game.status, 'SUCCESS');
+    assert.strictEqual(res2.data.isSuccess, true);
+    assert.strictEqual(room.status, 'RESULT');
+  });
+
+  it('손패가 없는 플레이어가 카드를 내려고 하면 에러를 반환해야 한다', () => {
+    game.playerCards.set(p1.token, []);
+    const res = game.handleAction(p1.token, 'playCard');
+    assert.strictEqual(res.success, false);
+    assert.strictEqual(res.error, '남은 카드가 없습니다.');
+  });
+});

@@ -53,7 +53,11 @@ document.addEventListener('DOMContentLoaded', () => {
     btnStartGame: document.getElementById('btnStartGame'),
     btnLeaveLobby: document.getElementById('btnLeaveLobby'),
 
-    // Game (Crocodile)
+    // Game Containers
+    gameContainerCroc: document.getElementById('gameContainerCroc'),
+    gameContainerTelepathy: document.getElementById('gameContainerTelepathy'),
+
+    // Game 1 (Crocodile)
     turnAlertBox: document.getElementById('turnAlertBox'),
     turnTimerProgress: document.getElementById('turnTimerProgress'),
     turnTimerSeconds: document.getElementById('turnTimerSeconds'),
@@ -73,7 +77,26 @@ document.addEventListener('DOMContentLoaded', () => {
     teethGrid: document.getElementById('teethGrid'),
     gameGuideBanner: document.getElementById('gameGuideBanner'),
 
+    // Game 2 (Telepathy)
+    telepathyHeartsDisplay: document.getElementById('telepathyHeartsDisplay'),
+    telepathyTotalRemaining: document.getElementById('telepathyTotalRemaining'),
+    telepathyLastPlayedBanner: document.getElementById('telepathyLastPlayedBanner'),
+    telepathyLastPlayedText: document.getElementById('telepathyLastPlayedText'),
+    telepathyCardWrapper: document.getElementById('telepathyCardWrapper'),
+    telepathyActiveCard: document.getElementById('telepathyActiveCard'),
+    telepathyCardCornerTop: document.getElementById('telepathyCardCornerTop'),
+    telepathyCardCenterNum: document.getElementById('telepathyCardCenterNum'),
+    telepathyCardCornerBottom: document.getElementById('telepathyCardCornerBottom'),
+    telepathyNoMoreCards: document.getElementById('telepathyNoMoreCards'),
+    telepathyNextCardsList: document.getElementById('telepathyNextCardsList'),
+    btnPlayTelepathyCard: document.getElementById('btnPlayTelepathyCard'),
+    btnPlayTelepathyCardText: document.getElementById('btnPlayTelepathyCardText'),
+    telepathyTeamStatus: document.getElementById('telepathyTeamStatus'),
+
     // Result
+    resultGraphic: document.getElementById('resultGraphic'),
+    resultTitle: document.getElementById('resultTitle'),
+    resultSubTitle: document.getElementById('resultSubTitle'),
     resultLoserName: document.getElementById('resultLoserName'),
     resultPenaltyText: document.getElementById('resultPenaltyText'),
     btnShareKakao: document.getElementById('btnShareKakao'),
@@ -850,38 +873,284 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // ============================================
+  // [2호 게임] 침묵의 텔레파시 렌더링 및 조작 시스템
+  // ============================================
+
+  function renderTelepathyGame(room) {
+    currentRoom = room;
+    const state = room.gameState;
+    if (!state) return;
+
+    // 1. 팀 생명(하트) 표시
+    const currentHearts = Math.max(0, state.hearts !== undefined ? state.hearts : 3);
+    const maxHearts = state.maxHearts || 3;
+    const heartText = '❤️'.repeat(currentHearts) + '🖤'.repeat(Math.max(0, maxHearts - currentHearts));
+    if (els.telepathyHeartsDisplay) {
+      els.telepathyHeartsDisplay.textContent = heartText;
+    }
+
+    // 2. 전체 남은 카드 수
+    if (els.telepathyTotalRemaining) {
+      els.telepathyTotalRemaining.textContent = state.totalRemaining !== undefined ? state.totalRemaining : 0;
+    }
+
+    // 3. 최근 내려놓은 카드 안내 배너
+    if (els.telepathyLastPlayedText) {
+      if (state.lastPlayedCard !== null && state.lastPlayedCard !== undefined) {
+        els.telepathyLastPlayedText.innerHTML = `최근 낸 카드: <strong class="text-amber-400 font-mono text-sm">${state.lastPlayedCard}</strong> (${state.lastPlayedByNickname || '동료'})`;
+      } else {
+        els.telepathyLastPlayedText.textContent = '침묵 속에서 눈치를 살펴 카드를 내세요!';
+      }
+    }
+
+    // 4. 내 카드 패 시각화
+    const myCards = state.myCards || [];
+    if (myCards.length > 0) {
+      const lowestCard = myCards[0];
+      if (els.telepathyActiveCard) els.telepathyActiveCard.classList.remove('hidden');
+      if (els.telepathyNoMoreCards) els.telepathyNoMoreCards.classList.add('hidden');
+
+      if (els.telepathyCardCornerTop) els.telepathyCardCornerTop.textContent = lowestCard;
+      if (els.telepathyCardCenterNum) els.telepathyCardCenterNum.textContent = lowestCard;
+      if (els.telepathyCardCornerBottom) els.telepathyCardCornerBottom.textContent = lowestCard;
+
+      if (els.btnPlayTelepathyCard) {
+        els.btnPlayTelepathyCard.disabled = false;
+        els.btnPlayTelepathyCard.classList.remove('opacity-50', 'cursor-not-allowed');
+      }
+      if (els.btnPlayTelepathyCardText) {
+        els.btnPlayTelepathyCardText.textContent = `카드 [ ${lowestCard} ] 내려놓기`;
+      }
+
+      // 다음 순서 카드들 목록 미리보기
+      const nextCards = myCards.slice(1);
+      if (els.telepathyNextCardsList) {
+        if (nextCards.length > 0) {
+          els.telepathyNextCardsList.innerHTML = nextCards.map(c => 
+            `<span class="px-2 py-0.5 rounded-lg bg-indigo-900/80 border border-indigo-500/40 font-mono font-bold text-xs text-indigo-200">${c}</span>`
+          ).join('');
+        } else {
+          els.telepathyNextCardsList.innerHTML = '<span class="text-[11px] text-slate-400 font-normal">마지막 카드입니다</span>';
+        }
+      }
+    } else {
+      // 내 손의 모든 카드를 다 내려놓았을 때
+      if (els.telepathyActiveCard) els.telepathyActiveCard.classList.add('hidden');
+      if (els.telepathyNoMoreCards) els.telepathyNoMoreCards.classList.remove('hidden');
+
+      if (els.btnPlayTelepathyCard) {
+        els.btnPlayTelepathyCard.disabled = true;
+        els.btnPlayTelepathyCard.classList.add('opacity-50', 'cursor-not-allowed');
+      }
+      if (els.btnPlayTelepathyCardText) {
+        els.btnPlayTelepathyCardText.textContent = '카드를 모두 냈습니다';
+      }
+      if (els.telepathyNextCardsList) {
+        els.telepathyNextCardsList.innerHTML = '<span class="text-[11px] text-emerald-400 font-bold">소진 완료</span>';
+      }
+    }
+
+    // 5. 팀원별 남은 카드 현황 뱃지 주입
+    if (els.telepathyTeamStatus && room.players) {
+      els.telepathyTeamStatus.innerHTML = room.players.map(p => {
+        const isMe = p.token === myToken;
+        const count = (state.playerHandCounts && state.playerHandCounts[p.token] !== undefined)
+          ? state.playerHandCounts[p.token]
+          : 0;
+        const countBadge = count === 0
+          ? '<span class="text-emerald-400 font-bold">완료 🎉</span>'
+          : `<span class="text-amber-400 font-mono font-bold">${count}</span>장`;
+
+        return `
+          <div class="px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${
+            isMe ? 'bg-indigo-950/70 border-indigo-500/50 text-indigo-200' : 'bg-slate-900/80 border-slate-700/60 text-slate-300'
+          }">
+            <span class="truncate max-w-[80px] font-medium">${p.nickname}${isMe ? '(나)' : ''}</span>
+            <span class="text-slate-500">:</span>
+            ${countBadge}
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  // 통합 인게임 화면 분기 렌더러
+  function renderGame(room) {
+    if (!room) return;
+    const gameType = (room.settings && room.settings.gameType) || 'crocodile';
+
+    if (gameType === 'telepathy') {
+      clearClientTurnTimer();
+      if (els.gameContainerCroc) els.gameContainerCroc.classList.add('hidden');
+      if (els.gameContainerTelepathy) els.gameContainerTelepathy.classList.remove('hidden');
+      renderTelepathyGame(room);
+    } else {
+      if (els.gameContainerTelepathy) els.gameContainerTelepathy.classList.add('hidden');
+      if (els.gameContainerCroc) els.gameContainerCroc.classList.remove('hidden');
+      renderCrocodileGame(room);
+    }
+  }
+
+  // 카드 내려놓기 실행 (버튼 클릭 or 카드 본체 터치)
+  let isPlayingCard = false;
+  function playMyTelepathyCard() {
+    if (!currentRoom || !myToken || isPlayingCard) return;
+    const state = currentRoom.gameState;
+    if (!state || !state.myCards || state.myCards.length === 0) return;
+
+    isPlayingCard = true;
+    try {
+      if (window.soundFx.playCardDrop) window.soundFx.playCardDrop();
+      else window.soundFx.playClick();
+    } catch (e) {}
+
+    window.soundFx.vibrate(25);
+
+    window.socketManager.sendGameAction(currentRoom.id, myToken, 'playCard', {}, (res) => {
+      isPlayingCard = false;
+      if (!res || !res.success) {
+        showAlert(res ? res.error : '카드를 낼 수 없습니다.', { title: '조작 오류', icon: '⚠️' });
+      }
+    });
+  }
+
+  if (els.btnPlayTelepathyCard) {
+    els.btnPlayTelepathyCard.addEventListener('click', playMyTelepathyCard);
+  }
+  if (els.telepathyActiveCard) {
+    els.telepathyActiveCard.addEventListener('click', playMyTelepathyCard);
+  }
+
   // 8. 최종 결과 렌더링 & 카카오톡 전송
   function renderResult(data) {
-    const loser = data.loser;
-    els.resultLoserName.textContent = loser ? loser.nickname : '미정';
-    els.resultPenaltyText.textContent = (currentRoom && currentRoom.settings.roles[0]) || '오늘 커피 쏘기! ☕';
+    const isTelepathy = currentRoom && currentRoom.settings && currentRoom.settings.gameType === 'telepathy';
 
-    // 카카오톡 공유 버튼 이벤트
-    els.btnShareKakao.onclick = async () => {
-      const now = new Date();
-      const pad = n => String(n).padStart(2, '0');
-      const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    if (isTelepathy) {
+      const isSuccess = data.isSuccess;
+      const penaltyText = (currentRoom && currentRoom.settings.roles[0]) || '오늘 커피 쏘기! ☕';
 
-      const shareText = `🏆 [MiniGame Hub] 악어 이빨 복불복 결과! 🏆
+      if (isSuccess) {
+        if (els.resultGraphic) els.resultGraphic.textContent = '🧠🎉';
+        if (els.resultTitle) {
+          els.resultTitle.textContent = '텔레파시 대성공!';
+          els.resultTitle.className = 'text-2xl font-black text-emerald-400 tracking-tight leading-tight';
+        }
+        if (els.resultSubTitle) {
+          els.resultSubTitle.textContent = '🤝 팀워크 마스터 (전원 미션 클리어!)';
+          els.resultSubTitle.className = 'text-xs font-bold text-emerald-300 tracking-wider';
+        }
+        if (els.resultLoserName) {
+          els.resultLoserName.textContent = '모든 참가자 전원 생존!';
+          els.resultLoserName.className = 'text-2xl sm:text-3xl font-black text-emerald-300 py-0.5';
+        }
+        if (els.resultPenaltyText) {
+          els.resultPenaltyText.textContent = '벌칙 면제! 완벽한 팀워크였습니다 👏';
+          els.resultPenaltyText.className = 'text-base sm:text-lg font-black text-emerald-400';
+        }
+      } else {
+        if (els.resultGraphic) els.resultGraphic.textContent = '💔⚡';
+        if (els.resultTitle) {
+          els.resultTitle.textContent = '텔레파시 연결 실패!';
+          els.resultTitle.className = 'text-2xl font-black text-rose-500 tracking-tight leading-tight';
+        }
+        if (els.resultSubTitle) {
+          els.resultSubTitle.textContent = '💔 하트가 모두 소진되었습니다';
+          els.resultSubTitle.className = 'text-xs font-bold text-rose-300 tracking-wider';
+        }
+        if (els.resultLoserName) {
+          els.resultLoserName.textContent = data.loser ? `${data.loser.nickname} (마지막 실수)` : '팀 전원 탈락';
+          els.resultLoserName.className = 'text-2xl sm:text-3xl font-black text-slate-100 py-0.5';
+        }
+        if (els.resultPenaltyText) {
+          els.resultPenaltyText.textContent = `[벌칙] ${penaltyText}`;
+          els.resultPenaltyText.className = 'text-base sm:text-lg font-black text-amber-300';
+        }
+      }
+
+      // 카카오톡 공유 버튼 이벤트 (협동 게임 맞춤형 문구)
+      els.btnShareKakao.onclick = async () => {
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+        const shareText = isSuccess
+          ? `🏆 [MiniGame Hub] 침묵의 텔레파시 대성공! 🏆
+방 코드: ${currentRoom.id}
+일시: ${dateStr}
+
+🧠 팀워크 결과:
+• 모든 팀원이 침묵 속에서 텔레파시 통신에 성공했습니다!
+• 벌칙 면제! 완벽한 협동이었습니다 👏`
+          : `⚡ [MiniGame Hub] 침묵의 텔레파시 실패! ⚡
+방 코드: ${currentRoom.id}
+일시: ${dateStr}
+
+💔 결과: 하트 소진으로 실패!
+• 마지막 실수자: ${data.loser ? data.loser.nickname : '팀원'}
+• 수행 벌칙: ${penaltyText}`;
+
+        if (navigator.share) {
+          try {
+            await navigator.share({ text: shareText });
+            return;
+          } catch (e) {
+            if (e.name === 'AbortError') return;
+          }
+        }
+
+        navigator.clipboard.writeText(shareText).then(() => {
+          showAlert('카카오톡 공유 결과가 복사되었습니다!\n단톡방에 붙여넣기(Ctrl+V)하세요.', { title: '복사 완료', icon: '📋' });
+        });
+      };
+    } else {
+      // 악어 게임 결과 렌더링
+      if (els.resultGraphic) els.resultGraphic.textContent = '🐊💥';
+      if (els.resultTitle) {
+        els.resultTitle.textContent = '악어에게 물렸습니다!';
+        els.resultTitle.className = 'text-2xl font-black text-rose-500 tracking-tight leading-tight';
+      }
+      if (els.resultSubTitle) {
+        els.resultSubTitle.textContent = '🎯 최종 당첨자 (벌칙 수행)';
+        els.resultSubTitle.className = 'text-xs font-bold text-amber-300 tracking-wider';
+      }
+      const loser = data.loser;
+      if (els.resultLoserName) {
+        els.resultLoserName.textContent = loser ? loser.nickname : '미정';
+        els.resultLoserName.className = 'text-2xl sm:text-3xl font-black text-slate-100 py-0.5';
+      }
+      if (els.resultPenaltyText) {
+        els.resultPenaltyText.textContent = (currentRoom && currentRoom.settings.roles[0]) || '오늘 커피 쏘기! ☕';
+        els.resultPenaltyText.className = 'text-base sm:text-lg font-black text-amber-300';
+      }
+
+      // 카카오톡 공유 버튼 이벤트
+      els.btnShareKakao.onclick = async () => {
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+        const shareText = `🏆 [MiniGame Hub] 악어 이빨 복불복 결과! 🏆
 방 코드: ${currentRoom.id}
 일시: ${dateStr}
 
 🐊 최종 물린 사람 (벌칙):
 • ${loser.nickname} 👉 ${els.resultPenaltyText.textContent}`;
 
-      if (navigator.share) {
-        try {
-          await navigator.share({ text: shareText });
-          return;
-        } catch (e) {
-          if (e.name === 'AbortError') return;
+        if (navigator.share) {
+          try {
+            await navigator.share({ text: shareText });
+            return;
+          } catch (e) {
+            if (e.name === 'AbortError') return;
+          }
         }
-      }
 
-      navigator.clipboard.writeText(shareText).then(() => {
-        showAlert('카카오톡 공유 결과가 복사되었습니다!\n단톡방에 붙여넣기(Ctrl+V)하세요.', { title: '복사 완료', icon: '📋' });
-      });
-    };
+        navigator.clipboard.writeText(shareText).then(() => {
+          showAlert('카카오톡 공유 결과가 복사되었습니다!\n단톡방에 붙여넣기(Ctrl+V)하세요.', { title: '복사 완료', icon: '📋' });
+        });
+      };
+    }
 
     // 대기실로 리셋 버튼 (방장만 활성화, 일반 참가자는 대기 상태로 직관적 비활성화)
     const me = currentRoom && currentRoom.players ? currentRoom.players.find(p => p.token === myToken) : null;
@@ -913,13 +1182,14 @@ document.addEventListener('DOMContentLoaded', () => {
           currentRoom = res.room;
           if (res.room.status === 'PLAYING') {
             showView('game');
-            try { renderCrocodileGame(res.room); } catch (e) {}
+            try { renderGame(res.room); } catch (e) {}
           } else if (res.room.status === 'LOBBY') {
             renderLobby(res.room);
             showView('lobby');
           } else if (res.room.status === 'RESULT') {
             const loser = (res.room.gameResults && res.room.gameResults.find(r => r.isLoser)) || null;
-            renderResult({ loser, room: res.room });
+            const isSuccess = res.room.gameState ? res.room.gameState.isSuccess : false;
+            renderResult({ loser, isSuccess, room: res.room });
             showView('result');
           }
         }
@@ -942,9 +1212,9 @@ document.addEventListener('DOMContentLoaded', () => {
     currentRoom = room;
     showView('game');
     try {
-      renderCrocodileGame(room);
+      renderGame(room);
     } catch (e) {
-      console.error('[Error] renderCrocodileGame failed:', e);
+      console.error('[Error] renderGame failed on gameStarted:', e);
     }
   });
 
@@ -955,7 +1225,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 안전한 이빨을 눌렀을 때
+  // [악어 게임] 안전한 이빨을 눌렀을 때
   socket.on('toothPressed', (data) => {
     console.log('[Socket] toothPressed received:', data);
     currentRoom = data.room;
@@ -972,7 +1242,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 꽝 이빨을 누르거나 시간 초과로 악어가 쾅 물었을 때
+  // [악어 게임] 꽝 이빨을 누르거나 시간 초과로 악어가 쾅 물었을 때
   socket.on('gameFinished', (data) => {
     console.log('[Socket] gameFinished received:', data);
     clearClientTurnTimer();
@@ -1001,6 +1271,70 @@ document.addEventListener('DOMContentLoaded', () => {
       renderResult(data);
       showView('result');
     }, 1200);
+  });
+
+  // [2호 게임: 텔레파시] 카드 한 장이 내려졌을 때
+  socket.on('telepathyCardPlayed', (data) => {
+    console.log('[Socket] telepathyCardPlayed received:', data);
+    currentRoom = data.room;
+    showView('game');
+
+    if (data.mistake) {
+      // 실수 발생: 더 작은 카드를 가진 사람이 있었음! -> 하트 감소 및 충격 효과
+      try {
+        if (window.soundFx.playHeartBreak) window.soundFx.playHeartBreak();
+        else window.soundFx.playChomp();
+      } catch (e) {}
+
+      window.soundFx.vibrate([100, 50, 200]);
+      els.mainContainer.classList.add('shake-effect');
+      setTimeout(() => els.mainContainer.classList.remove('shake-effect'), 500);
+
+      // 상단 배너 강조
+      if (els.telepathyLastPlayedText) {
+        els.telepathyLastPlayedText.innerHTML = `⚠️ <strong class="text-rose-400">${data.nickname}</strong>님이 <strong class="text-amber-400 font-mono">${data.playedCard}</strong>을 냈으나 더 작은 카드가 있어 하트 1개 감소! 💔`;
+      }
+    } else {
+      // 정상 순서대로 착지 성공
+      try {
+        if (window.soundFx.playCardDrop) window.soundFx.playCardDrop();
+        else window.soundFx.playSafe();
+      } catch (e) {}
+      window.soundFx.vibrate(20);
+    }
+
+    try {
+      renderTelepathyGame(data.room);
+    } catch (e) {
+      console.error('[Error] renderTelepathyGame error:', e);
+    }
+  });
+
+  // [2호 게임: 텔레파시] 게임 종료 (성공 또는 생명 소진 실패)
+  socket.on('telepathyFinished', (data) => {
+    console.log('[Socket] telepathyFinished received:', data);
+    currentRoom = data.room;
+
+    if (data.isSuccess) {
+      try {
+        if (window.soundFx.playVictory) window.soundFx.playVictory();
+        else window.soundFx.playSafe();
+      } catch (e) {}
+      window.soundFx.vibrate([100, 50, 100, 50, 300]);
+    } else {
+      try {
+        if (window.soundFx.playHeartBreak) window.soundFx.playHeartBreak();
+        else window.soundFx.playChomp();
+      } catch (e) {}
+      window.soundFx.vibrate([200, 100, 300]);
+      els.mainContainer.classList.add('shake-effect');
+      setTimeout(() => els.mainContainer.classList.remove('shake-effect'), 500);
+    }
+
+    setTimeout(() => {
+      renderResult(data);
+      showView('result');
+    }, 1000);
   });
 
   socket.on('roomDestroyed', (data) => {
