@@ -165,6 +165,13 @@ class Room {
     this.status = 'LOBBY';
     this.lobbyEnteredAt = Date.now();
     this.resultEnteredAt = null;
+    if (this.activeGame && typeof this.activeGame.destroy === 'function') {
+      try {
+        this.activeGame.destroy();
+      } catch (e) {
+        console.warn('[Room] Error destroying activeGame on resetToLobby:', e);
+      }
+    }
     this.activeGame = null;
     this.gameResults = null;
     return { success: true, room: this.toState() };

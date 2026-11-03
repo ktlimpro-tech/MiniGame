@@ -191,6 +191,15 @@ class TelepathyGame {
     return { success: false, error: '알 수 없는 동작입니다.' };
   }
 
+  // 악어 게임 등 타이머 시스템과의 완벽한 인터페이스 호환을 위한 안전 메서드
+  clearTurnTimer() {
+    // 텔레파시 게임은 턴제 타이머가 없으므로 무작업 수행
+  }
+
+  startTurnTimer() {
+    // 텔레파시 게임은 턴제 타이머가 없으므로 무작업 수행
+  }
+
   destroy() {
     this.playerCards.clear();
     this.discardPile = [];

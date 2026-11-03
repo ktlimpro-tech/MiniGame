@@ -5,6 +5,14 @@ const { Server } = require('socket.io');
 const config = require('./config');
 const RoomManager = require('./models/RoomManager');
 
+// 서버 비정상 다운 방지를 위한 글로벌 안전 가드 (인메모리 방 보존)
+process.on('uncaughtException', (err) => {
+  console.error('[CRITICAL] Uncaught Exception trapped to prevent process exit:', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[CRITICAL] Unhandled Rejection trapped to prevent process exit:', reason);
+});
+
 const app = express();
 // Render.com 및 리버스 프록시 뒤에서 실제 클라이언트 IP 추출을 위해 필수 설정
 app.set('trust proxy', 1);
@@ -288,8 +296,10 @@ io.on('connection', (socket) => {
           // 타이머가 새로 세팅된 최신 룸 상태로 data.room 갱신 (클라이언트에 이전 턴 잔여시간 전달 방지)
           result.data.room = room.toState();
         } else if (result.eventName === 'gameFinished') {
-          // 게임 종료 ➔ 타이머 정지
-          room.activeGame.clearTurnTimer();
+          // 게임 종료 ➔ 타이머 정지 (메서드 존재 여부 안전 검사)
+          if (typeof room.activeGame.clearTurnTimer === 'function') {
+            room.activeGame.clearTurnTimer();
+          }
           result.data.room = room.toState();
         }
       }
@@ -302,33 +312,47 @@ io.on('connection', (socket) => {
 
   // 8. 대기실로 리셋 (한 판 더!)
   socket.on('resetToLobby', ({ roomCode, token }, callback) => {
-    const code = roomCode ? roomCode.toUpperCase() : '';
-    const room = roomManager.rooms.get(code);
-    if (room && room.activeGame) room.activeGame.clearTurnTimer();
+    try {
+      const code = roomCode ? roomCode.toUpperCase() : '';
+      const room = roomManager.rooms.get(code);
+      if (room && room.activeGame && typeof room.activeGame.clearTurnTimer === 'function') {
+        room.activeGame.clearTurnTimer();
+      }
 
-    const result = roomManager.resetToLobby(roomCode, token);
-    if (result.success) {
-      broadcastToRoom(result.room.id, 'roomUpdated', result.room);
+      const result = roomManager.resetToLobby(roomCode, token);
+      if (result.success) {
+        broadcastToRoom(result.room.id, 'roomUpdated', result.room);
+      }
+      if (typeof callback === 'function') callback(result);
+    } catch (e) {
+      console.error('[Error] resetToLobby error:', e);
+      if (typeof callback === 'function') callback({ success: false, error: '대기실 복귀 중 오류가 발생했습니다.' });
     }
-    if (typeof callback === 'function') callback(result);
   });
 
   // 9. 방 나가기
   socket.on('leaveRoom', ({ roomCode, token }, callback) => {
-    const code = roomCode ? roomCode.toUpperCase() : '';
-    const room = roomManager.rooms.get(code);
-    if (room && room.activeGame) room.activeGame.clearTurnTimer();
-
-    const result = roomManager.leaveRoom(socket.id, roomCode, token);
-    if (result.success) {
-      socket.leave(roomCode);
-      if (result.roomDestroyed) {
-        io.to(roomCode).emit('roomDestroyed', { reason: 'host_left' });
-      } else if (result.room) {
-        broadcastToRoom(result.room.id, 'roomUpdated', result.room.toState());
+    try {
+      const code = roomCode ? roomCode.toUpperCase() : '';
+      const room = roomManager.rooms.get(code);
+      if (room && room.activeGame && typeof room.activeGame.clearTurnTimer === 'function') {
+        room.activeGame.clearTurnTimer();
       }
+
+      const result = roomManager.leaveRoom(socket.id, roomCode, token);
+      if (result.success) {
+        socket.leave(roomCode);
+        if (result.roomDestroyed) {
+          io.to(roomCode).emit('roomDestroyed', { reason: 'host_left' });
+        } else if (result.room) {
+          broadcastToRoom(result.room.id, 'roomUpdated', result.room.toState());
+        }
+      }
+      if (typeof callback === 'function') callback(result);
+    } catch (e) {
+      console.error('[Error] leaveRoom error:', e);
+      if (typeof callback === 'function') callback({ success: false, error: '방 퇴장 처리 중 오류가 발생했습니다.' });
     }
-    if (typeof callback === 'function') callback(result);
   });
 
   // 10. 관전자 실시간 리액션 이모지/말풍선 전송 (서버 Rate Limiting 200ms 적용)

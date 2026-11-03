@@ -133,4 +133,24 @@ describe('🧠 2호 협동 게임: 침묵의 텔레파시 (TelepathyGame) 단위
     assert.strictEqual(res.success, false);
     assert.strictEqual(res.error, '남은 카드가 없습니다.');
   });
+
+  it('텔레파시 게임 종료(RESULT) 후 대기실로 리셋(resetToLobby)이 오류 없이 성공해야 한다', () => {
+    // 게임 종료 상태 만들기
+    game.hearts = 0;
+    room.finishGame([{ token: p1.token, isLoser: true }]);
+    assert.strictEqual(room.status, 'RESULT');
+
+    // clearTurnTimer 호출 안전성 검증
+    assert.doesNotThrow(() => {
+      if (room.activeGame && typeof room.activeGame.clearTurnTimer === 'function') {
+        room.activeGame.clearTurnTimer();
+      }
+    });
+
+    // resetToLobby 실행
+    const resetRes = room.resetToLobby();
+    assert.strictEqual(resetRes.success, true);
+    assert.strictEqual(room.status, 'LOBBY');
+    assert.strictEqual(room.activeGame, null);
+  });
 });
