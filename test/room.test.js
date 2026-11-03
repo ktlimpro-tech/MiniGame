@@ -79,15 +79,15 @@ describe('🏠 공통 Room 라이프사이클 및 설정 테스트', () => {
     assert.strictEqual(res1.success, true);
     assert.strictEqual(res1.player.nickname, '방장김철수(2)');
 
-    // 한 번 더 동일 닉네임 입장
-    const res2 = room.addOrReconnectPlayer('socket-3', '방장김철수');
+    // 한 번 더 동일 닉네임 입장 (공백 포함된 형태)
+    const res2 = room.addOrReconnectPlayer('socket-3', '  방장김철수  ');
     assert.strictEqual(res2.success, true);
     assert.strictEqual(res2.player.nickname, '방장김철수(3)');
 
-    // 다른 닉네임 추가 후 중복 테스트
-    room.addOrReconnectPlayer('socket-4', '홍길동');
-    const res3 = room.addOrReconnectPlayer('socket-5', '홍길동');
-    assert.strictEqual(res3.player.nickname, '홍길동(2)');
+    // 영문 대소문자 중복 체크
+    room.addOrReconnectPlayer('socket-4', 'IronMan');
+    const res3 = room.addOrReconnectPlayer('socket-5', 'ironman');
+    assert.strictEqual(res3.player.nickname, 'ironman(2)');
   });
 
   it('대기실에서 벌칙 및 설정을 변경하면 즉시 반영되어야 한다', () => {

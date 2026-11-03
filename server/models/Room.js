@@ -25,10 +25,11 @@ class Room {
 
     // 방장 등록
     const hostToken = crypto.randomUUID();
+    const cleanHostNick = (hostNickname || '').trim() || '방장';
     this.players.push({
       token: hostToken,
       socketId: hostSocketId,
-      nickname: hostNickname || '방장',
+      nickname: cleanHostNick,
       isHost: true,
       isConnected: true,
       joinedAt: Date.now()
@@ -52,15 +53,20 @@ class Room {
     return this.players.filter(p => p.isConnected).length;
   }
 
-  generateUniqueNickname(desiredNickname) {
+  generateUniqueNickname(desiredNickname, excludeToken = null) {
     const raw = (desiredNickname || '').trim() || `참가자${this.players.length + 1}`;
-    const base = raw.replace(/\(\d+\)$/, '').trim();
-    const existingNames = new Set(this.players.map(p => p.nickname));
-    if (!existingNames.has(raw)) {
+    const base = raw.replace(/\(\d+\)$/, '').trim() || '참가자';
+
+    // 본인(재연결 시)을 제외한 다른 플레이어 닉네임 목록 (대소문자 무시 비교)
+    const otherPlayers = this.players.filter(p => !excludeToken || p.token !== excludeToken);
+    const existingLowerNames = new Set(otherPlayers.map(p => p.nickname.toLowerCase()));
+
+    if (!existingLowerNames.has(raw.toLowerCase())) {
       return raw;
     }
+
     let counter = 2;
-    while (existingNames.has(`${base}(${counter})`)) {
+    while (existingLowerNames.has(`${base}(${counter})`.toLowerCase())) {
       counter++;
     }
     return `${base}(${counter})`;
@@ -73,7 +79,9 @@ class Room {
       if (existing) {
         existing.socketId = socketId;
         existing.isConnected = true;
-        if (nickname) existing.nickname = nickname;
+        if (nickname && nickname.trim() !== existing.nickname) {
+          existing.nickname = this.generateUniqueNickname(nickname, existing.token);
+        }
         return { success: true, player: existing, room: this.toState(), isReconnect: true };
       }
     }

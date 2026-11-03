@@ -182,6 +182,13 @@ document.addEventListener('DOMContentLoaded', () => {
         myToken = res.player.token;
         setSessionToken(res.room.id, myToken);
         currentRoom = res.room;
+
+        // 서버에서 중복 처리 등으로 최종 확정된 닉네임 동기화
+        if (res.player && res.player.nickname) {
+          els.inputNickname.value = res.player.nickname;
+          localStorage.setItem('minigame_nickname', res.player.nickname);
+        }
+
         renderLobby(res.room);
         showView('lobby');
       } else {
