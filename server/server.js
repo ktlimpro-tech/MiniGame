@@ -146,8 +146,8 @@ function broadcastToRoom(roomId, eventName, data) {
   if (!roomId) return;
   const room = roomManager.rooms.get(roomId);
 
-  // 1. 2호 텔레파시 게임인 경우: 플레이어별 본인 비밀 카드(myCards)가 다르므로 개별 소켓 맞춤 전송
-  if (room && room.activeGame && room.settings.gameType === 'telepathy') {
+  // 1. 2호(텔레파시), 3호(밸런스) 게임인 경우: 플레이어별 본인 비밀 카드/투표가 다르므로 개별 소켓 맞춤 전송
+  if (room && room.activeGame && (room.settings.gameType === 'telepathy' || room.settings.gameType === 'balance')) {
     for (const player of room.players) {
       if (player.socketId) {
         const s = io.sockets.sockets.get(player.socketId);

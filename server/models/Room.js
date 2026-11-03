@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const CrocodileGame = require('../games/crocodile');
 const TelepathyGame = require('../games/telepathy');
+const BalanceGame = require('../games/balance');
 
 class Room {
   constructor(roomCode, hostNickname, hostSocketId, customSettings = {}) {
@@ -15,8 +16,9 @@ class Room {
 
     // 공통 허브 설정
     this.settings = {
-      gameType: customSettings.gameType || 'crocodile', // 'crocodile' (1호), 'telepathy' (2호)
+      gameType: customSettings.gameType || 'crocodile', // 'crocodile' (1호), 'telepathy' (2호), 'balance' (3호)
       cardsPerPlayer: customSettings.cardsPerPlayer || 2, // 2호 텔레파시 인당 카드 수
+      balanceSubMode: customSettings.balanceSubMode || 'minority', // 3호 밸런스 모드 ('minority', 'couple', 'consensus')
       roles: customSettings.roles || ['당첨 (벌칙)', '생존 (통과)'], // 내기 항목
       turnTimeoutSec: customSettings.turnTimeoutSec || 10,
       ...customSettings
@@ -140,6 +142,9 @@ class Room {
       this.activeGame.init();
     } else if (this.settings.gameType === 'telepathy') {
       this.activeGame = new TelepathyGame(this);
+      this.activeGame.init();
+    } else if (this.settings.gameType === 'balance') {
+      this.activeGame = new BalanceGame(this);
       this.activeGame.init();
     }
 

@@ -50,6 +50,10 @@ document.addEventListener('DOMContentLoaded', () => {
     selectCardsPerPlayer: document.getElementById('selectCardsPerPlayer'),
     telepathyCardNotice: document.getElementById('telepathyCardNotice'),
     telepathyCapHelpText: document.getElementById('telepathyCapHelpText'),
+    balanceSettingsGroup: document.getElementById('balanceSettingsGroup'),
+    balanceCoupleNoticeBox: document.getElementById('balanceCoupleNoticeBox'),
+    selectBalanceMode: document.getElementById('selectBalanceMode'),
+    balanceModeNotice: document.getElementById('balanceModeNotice'),
     inputPenalty: document.getElementById('inputPenalty'),
     playerCount: document.getElementById('playerCount'),
     lobbyPlayerList: document.getElementById('lobbyPlayerList'),
@@ -60,6 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Game Containers
     gameContainerCroc: document.getElementById('gameContainerCroc'),
     gameContainerTelepathy: document.getElementById('gameContainerTelepathy'),
+    gameContainerBalance: document.getElementById('gameContainerBalance'),
 
     // Game 1 (Crocodile)
     turnAlertBox: document.getElementById('turnAlertBox'),
@@ -96,6 +101,23 @@ document.addEventListener('DOMContentLoaded', () => {
     btnPlayTelepathyCard: document.getElementById('btnPlayTelepathyCard'),
     btnPlayTelepathyCardText: document.getElementById('btnPlayTelepathyCardText'),
     telepathyTeamStatus: document.getElementById('telepathyTeamStatus'),
+
+    // Game 3 (Balance)
+    balanceCategoryBadge: document.getElementById('balanceCategoryBadge'),
+    balanceModeBadge: document.getElementById('balanceModeBadge'),
+    balanceVotedCountText: document.getElementById('balanceVotedCountText'),
+    balanceTotalPlayersText: document.getElementById('balanceTotalPlayersText'),
+    balanceQuestionText: document.getElementById('balanceQuestionText'),
+    btnBalanceOptionA: document.getElementById('btnBalanceOptionA'),
+    balanceCheckIconA: document.getElementById('balanceCheckIconA'),
+    balanceOptionAText: document.getElementById('balanceOptionAText'),
+    balanceVotesListA: document.getElementById('balanceVotesListA'),
+    btnBalanceOptionB: document.getElementById('btnBalanceOptionB'),
+    balanceCheckIconB: document.getElementById('balanceCheckIconB'),
+    balanceOptionBText: document.getElementById('balanceOptionBText'),
+    balanceVotesListB: document.getElementById('balanceVotesListB'),
+    balanceStatusBanner: document.getElementById('balanceStatusBanner'),
+    btnBalanceNextQuestion: document.getElementById('btnBalanceNextQuestion'),
 
     // Result
     resultGraphic: document.getElementById('resultGraphic'),
@@ -440,9 +462,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const penalty = els.inputPenalty.value.trim() || '오늘 커피 쏘기! ☕';
       const gameType = els.selectGameType.value || 'crocodile';
       const cardsPerPlayer = parseInt(els.selectCardsPerPlayer.value, 10) || 2;
+      const balanceSubMode = els.selectBalanceMode ? els.selectBalanceMode.value : 'minority';
       window.socketManager.updateSettings(currentRoom.id, myToken, {
         gameType,
         cardsPerPlayer,
+        balanceSubMode,
         roles: [penalty, '생존 (통과)']
       });
     };
@@ -460,13 +484,18 @@ document.addEventListener('DOMContentLoaded', () => {
   els.inputPenalty.addEventListener('change', () => syncRoomSettings(true));
   els.inputPenalty.addEventListener('blur', () => syncRoomSettings(true));
   els.selectGameType.addEventListener('change', () => {
-    // 게임 타입 변경 시 즉시 텔레파시 설정 박스 가시성 토글 후 동기화
+    // 게임 타입 변경 시 각 게임 세부 설정 박스 가시성 토글 후 동기화
     const isTelepathy = els.selectGameType.value === 'telepathy';
-    els.telepathySettingsGroup.classList.toggle('hidden', !isTelepathy);
+    const isBalance = els.selectGameType.value === 'balance';
+    if (els.telepathySettingsGroup) els.telepathySettingsGroup.classList.toggle('hidden', !isTelepathy);
+    if (els.balanceSettingsGroup) els.balanceSettingsGroup.classList.toggle('hidden', !isBalance);
     syncRoomSettings(true);
   });
   if (els.selectCardsPerPlayer) {
     els.selectCardsPerPlayer.addEventListener('change', () => syncRoomSettings(true));
+  }
+  if (els.selectBalanceMode) {
+    els.selectBalanceMode.addEventListener('change', () => syncRoomSettings(true));
   }
 
   // 4. 게임 시작 클릭 (방장)
@@ -475,9 +504,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const penalty = els.inputPenalty.value.trim() || '오늘 커피 쏘기! ☕';
     const gameType = els.selectGameType.value || 'crocodile';
     const cardsPerPlayer = parseInt(els.selectCardsPerPlayer.value, 10) || 2;
+    const balanceSubMode = els.selectBalanceMode ? els.selectBalanceMode.value : 'minority';
     window.socketManager.updateSettings(currentRoom.id, myToken, {
       gameType,
       cardsPerPlayer,
+      balanceSubMode,
       roles: [penalty, '생존 (통과)']
     }, () => {
       window.socketManager.startGame(currentRoom.id, myToken, (res) => {
@@ -589,6 +620,41 @@ document.addEventListener('DOMContentLoaded', () => {
         els.telepathyCardNotice.className = isHost
           ? 'text-[11px] text-indigo-300 font-semibold'
           : 'text-[11px] text-slate-400 font-medium';
+      }
+    }
+
+    // 3호 밸런스 전용 세부 설정 박스 제어
+    const isBalance = (room.settings && room.settings.gameType === 'balance') || els.selectGameType.value === 'balance';
+    if (els.balanceSettingsGroup) {
+      els.balanceSettingsGroup.classList.toggle('hidden', !isBalance);
+    }
+
+    if (isBalance) {
+      const playerCount = room.players.length;
+      if (playerCount <= 2) {
+        // 2인 모드: 둘만의 이심전심 자동 고정
+        if (els.balanceCoupleNoticeBox) els.balanceCoupleNoticeBox.classList.remove('hidden');
+        if (els.selectBalanceMode) els.selectBalanceMode.classList.add('hidden');
+        if (els.balanceModeNotice) {
+          els.balanceModeNotice.textContent = '2인: 이심전심 자동 적용';
+          els.balanceModeNotice.className = 'text-[11px] text-purple-300 font-semibold';
+        }
+      } else {
+        // 3인 이상: 소수파 벌칙 / 만장일치 모드 선택 가능
+        if (els.balanceCoupleNoticeBox) els.balanceCoupleNoticeBox.classList.add('hidden');
+        if (els.selectBalanceMode) {
+          els.selectBalanceMode.classList.remove('hidden');
+          els.selectBalanceMode.disabled = !isHost;
+          if (room.settings && room.settings.balanceSubMode) {
+            els.selectBalanceMode.value = room.settings.balanceSubMode;
+          }
+        }
+        if (els.balanceModeNotice) {
+          els.balanceModeNotice.textContent = isHost ? '방장 모드 선택 가능' : '방장이 모드 설정 중';
+          els.balanceModeNotice.className = isHost
+            ? 'text-[11px] text-purple-300 font-semibold'
+            : 'text-[11px] text-slate-400 font-medium';
+        }
       }
     }
 
@@ -1046,16 +1112,151 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!room) return;
     const gameType = (room.settings && room.settings.gameType) || 'crocodile';
 
+    clearClientTurnTimer();
+    if (els.gameContainerCroc) els.gameContainerCroc.classList.add('hidden');
+    if (els.gameContainerTelepathy) els.gameContainerTelepathy.classList.add('hidden');
+    if (els.gameContainerBalance) els.gameContainerBalance.classList.add('hidden');
+
     if (gameType === 'telepathy') {
-      clearClientTurnTimer();
-      if (els.gameContainerCroc) els.gameContainerCroc.classList.add('hidden');
       if (els.gameContainerTelepathy) els.gameContainerTelepathy.classList.remove('hidden');
       renderTelepathyGame(room);
+    } else if (gameType === 'balance') {
+      if (els.gameContainerBalance) els.gameContainerBalance.classList.remove('hidden');
+      renderBalanceGame(room);
     } else {
-      if (els.gameContainerTelepathy) els.gameContainerTelepathy.classList.add('hidden');
       if (els.gameContainerCroc) els.gameContainerCroc.classList.remove('hidden');
       renderCrocodileGame(room);
     }
+  }
+
+  // ============================================
+  // [3호 게임] 이심전심 밸런스 렌더링 및 조작 시스템
+  // ============================================
+
+  function renderBalanceGame(room) {
+    currentRoom = room;
+    const state = room.gameState;
+    if (!state || !state.currentQuestion) return;
+
+    const q = state.currentQuestion;
+
+    // 1. 상단 인포 바
+    if (els.balanceCategoryBadge) els.balanceCategoryBadge.textContent = q.category || '밸런스';
+    if (els.balanceModeBadge) {
+      if (state.subMode === 'couple') {
+        els.balanceModeBadge.textContent = `❤️ 둘만의 이심전심 (${state.round}/${state.maxRounds}R)`;
+      } else if (state.subMode === 'consensus') {
+        els.balanceModeBadge.textContent = '🤝 전원 만장일치 도전';
+      } else {
+        els.balanceModeBadge.textContent = '🔥 소수파 독박 벌칙';
+      }
+    }
+    if (els.balanceVotedCountText) els.balanceVotedCountText.textContent = state.votedCount || 0;
+    if (els.balanceTotalPlayersText) els.balanceTotalPlayersText.textContent = state.totalPlayers || room.players.length;
+
+    // 2. 질문 텍스트
+    if (els.balanceQuestionText) els.balanceQuestionText.textContent = q.question;
+
+    // 3. 선택지 내용
+    if (els.balanceOptionAText) els.balanceOptionAText.textContent = q.optionA;
+    if (els.balanceOptionBText) els.balanceOptionBText.textContent = q.optionB;
+
+    // 4. 내 선택 상태
+    const myVote = state.myVote;
+    if (els.balanceCheckIconA) els.balanceCheckIconA.classList.toggle('hidden', myVote !== 'A');
+    if (els.balanceCheckIconB) els.balanceCheckIconB.classList.toggle('hidden', myVote !== 'B');
+
+    if (els.btnBalanceOptionA) {
+      els.btnBalanceOptionA.classList.toggle('border-rose-500', myVote === 'A');
+      els.btnBalanceOptionA.classList.toggle('bg-rose-950/40', myVote === 'A');
+    }
+    if (els.btnBalanceOptionB) {
+      els.btnBalanceOptionB.classList.toggle('border-blue-500', myVote === 'B');
+      els.btnBalanceOptionB.classList.toggle('bg-blue-950/40', myVote === 'B');
+    }
+
+    // 5. 결과 공개 여부
+    if (state.isRevealed && state.lastResult) {
+      const res = state.lastResult;
+      if (els.btnBalanceOptionA) els.btnBalanceOptionA.disabled = true;
+      if (els.btnBalanceOptionB) els.btnBalanceOptionB.disabled = true;
+
+      if (els.balanceVotesListA) {
+        els.balanceVotesListA.classList.remove('hidden');
+        els.balanceVotesListA.innerHTML = res.votesA.map(v => 
+          `<span class="px-2 py-0.5 rounded-md bg-rose-500 text-slate-950 font-black text-[10px]">${v.nickname}</span>`
+        ).join('') || '<span class="text-slate-500 text-[10px]">선택자 없음</span>';
+      }
+      if (els.balanceVotesListB) {
+        els.balanceVotesListB.classList.remove('hidden');
+        els.balanceVotesListB.innerHTML = res.votesB.map(v => 
+          `<span class="px-2 py-0.5 rounded-md bg-blue-500 text-slate-950 font-black text-[10px]">${v.nickname}</span>`
+        ).join('') || '<span class="text-slate-500 text-[10px]">선택자 없음</span>';
+      }
+
+      if (els.balanceStatusBanner) {
+        if (state.subMode === 'couple') {
+          els.balanceStatusBanner.innerHTML = res.isMatched
+            ? '🎉 텔레파시 일치! 마음이 통했습니다 (+1점)!'
+            : '💔 엇갈림! 서로 다른 선택을 했습니다.';
+        } else {
+          if (res.isUnanimous) {
+            els.balanceStatusBanner.innerHTML = '🎉 만장일치 대성공! 전원 마음이 통했습니다!';
+          } else if (res.isDraw) {
+            els.balanceStatusBanner.innerHTML = '⚖️ 황금 밸런스! 동률(무승부)이 나왔습니다!';
+          } else {
+            const loserNames = res.minorityVotes.map(m => m.nickname).join(', ');
+            els.balanceStatusBanner.innerHTML = `🔥 소수파 벌칙 당첨: <strong class="text-amber-400 font-black">${loserNames}</strong>`;
+          }
+        }
+      }
+
+      // 2인 커플 모드 다음 라운드 버튼 노출
+      const me = room.players.find(p => p.token === myToken);
+      const isHost = me && me.isHost;
+      if (els.btnBalanceNextQuestion) {
+        const canNext = state.subMode === 'couple' && state.round < state.maxRounds && isHost;
+        els.btnBalanceNextQuestion.classList.toggle('hidden', !canNext);
+      }
+    } else {
+      if (els.btnBalanceOptionA) els.btnBalanceOptionA.disabled = false;
+      if (els.btnBalanceOptionB) els.btnBalanceOptionB.disabled = false;
+      if (els.balanceVotesListA) els.balanceVotesListA.classList.add('hidden');
+      if (els.balanceVotesListB) els.balanceVotesListB.classList.add('hidden');
+      if (els.btnBalanceNextQuestion) els.btnBalanceNextQuestion.classList.add('hidden');
+
+      if (els.balanceStatusBanner) {
+        els.balanceStatusBanner.textContent = myVote
+          ? `선택 완료! 다른 참가자들의 선택을 기다리는 중입니다 (${state.votedCount || 0}/${state.totalPlayers || room.players.length}명)`
+          : '더 끌리는 선택지 하나를 터치하세요!';
+      }
+    }
+  }
+
+  // 투표 액션 전송
+  function castBalanceVote(option) {
+    if (!currentRoom || !myToken) return;
+    try { window.soundFx.playClick(); } catch (e) {}
+    window.soundFx.vibrate(20);
+
+    window.socketManager.sendGameAction(currentRoom.id, myToken, 'vote', { option }, (res) => {
+      if (!res || !res.success) {
+        showAlert(res ? res.error : '투표 처리에 실패했습니다.', { title: '오류', icon: '⚠️' });
+      }
+    });
+  }
+
+  if (els.btnBalanceOptionA) {
+    els.btnBalanceOptionA.addEventListener('click', () => castBalanceVote('A'));
+  }
+  if (els.btnBalanceOptionB) {
+    els.btnBalanceOptionB.addEventListener('click', () => castBalanceVote('B'));
+  }
+  if (els.btnBalanceNextQuestion) {
+    els.btnBalanceNextQuestion.addEventListener('click', () => {
+      if (!currentRoom || !myToken) return;
+      window.socketManager.sendGameAction(currentRoom.id, myToken, 'nextRound', {});
+    });
   }
 
   // 카드 내려놓기 실행 (버튼 클릭 or 카드 본체 터치)
@@ -1090,7 +1291,185 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 8. 최종 결과 렌더링 & 카카오톡 전송
   function renderResult(data) {
-    const isTelepathy = currentRoom && currentRoom.settings && currentRoom.settings.gameType === 'telepathy';
+    const gameType = currentRoom && currentRoom.settings ? currentRoom.settings.gameType : 'crocodile';
+    const isTelepathy = gameType === 'telepathy';
+    const isBalance = gameType === 'balance';
+    const penaltyText = (currentRoom && currentRoom.settings && currentRoom.settings.roles && currentRoom.settings.roles[0]) || '오늘 커피 쏘기! ☕';
+
+    if (isBalance) {
+      const state = (currentRoom && currentRoom.gameState) || {};
+      const subMode = data.subMode || state.subMode || 'minority';
+      const isSuccess = data.isSuccess !== undefined ? data.isSuccess : (state.matchCount >= 2 || state.isUnanimous);
+      const isDraw = data.isDraw || (state.lastResult && state.lastResult.isDraw);
+      const isUnanimous = data.isUnanimous || (state.lastResult && state.lastResult.isUnanimous);
+
+      // 패자 추출
+      let loserText = '미정';
+      if (data.loser && data.loser.nickname) {
+        loserText = data.loser.nickname;
+      } else if (currentRoom && currentRoom.gameResults) {
+        const losers = currentRoom.gameResults.filter(r => r.isLoser).map(r => r.nickname);
+        if (losers.length > 0) loserText = losers.join(', ');
+      }
+
+      if (subMode === 'couple') {
+        const matchCount = data.matchCount !== undefined ? data.matchCount : (state.matchCount || 0);
+        if (isSuccess) {
+          if (els.resultGraphic) els.resultGraphic.textContent = '💑🎉';
+          if (els.resultTitle) {
+            els.resultTitle.textContent = '찰떡궁합 인정 대성공!';
+            els.resultTitle.className = 'text-2xl font-black text-emerald-400 tracking-tight leading-tight';
+          }
+          if (els.resultSubTitle) {
+            els.resultSubTitle.textContent = `🤝 3문제 중 ${matchCount}문제 텔레파시 일치!`;
+            els.resultSubTitle.className = 'text-xs font-bold text-emerald-300 tracking-wider';
+          }
+          if (els.resultLoserName) {
+            els.resultLoserName.textContent = '두 사람 모두 생존! 통과 ✨';
+            els.resultLoserName.className = 'text-2xl sm:text-3xl font-black text-emerald-300 py-0.5';
+          }
+          if (els.resultPenaltyText) {
+            els.resultPenaltyText.textContent = '벌칙 면제! 통하는 게 많은 사이네요 💖';
+            els.resultPenaltyText.className = 'text-base sm:text-lg font-black text-emerald-400';
+          }
+        } else {
+          if (els.resultGraphic) els.resultGraphic.textContent = '💔😅';
+          if (els.resultTitle) {
+            els.resultTitle.textContent = '취향 불일치! 텔레파시 실패';
+            els.resultTitle.className = 'text-2xl font-black text-rose-500 tracking-tight leading-tight';
+          }
+          if (els.resultSubTitle) {
+            els.resultSubTitle.textContent = `💔 3문제 중 ${matchCount}문제만 일치 (목표: 2문제 이상)`;
+            els.resultSubTitle.className = 'text-xs font-bold text-rose-300 tracking-wider';
+          }
+          if (els.resultLoserName) {
+            els.resultLoserName.textContent = '두 사람 모두 벌칙 당첨!';
+            els.resultLoserName.className = 'text-2xl sm:text-3xl font-black text-rose-400 py-0.5';
+          }
+          if (els.resultPenaltyText) {
+            els.resultPenaltyText.textContent = `[함께 수행할 벌칙] ${penaltyText}`;
+            els.resultPenaltyText.className = 'text-base sm:text-lg font-black text-amber-300';
+          }
+        }
+
+        // 카카오 공유
+        els.btnShareKakao.onclick = async () => {
+          const now = new Date();
+          const pad = n => String(n).padStart(2, '0');
+          const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+          const shareText = isSuccess
+            ? `🏆 [MiniGame Hub] 🤝 이심전심 밸런스 (2인 커플) 성공! 🏆
+방 코드: ${currentRoom.id}
+일시: ${dateStr}
+
+💑 텔레파시 결과:
+• 3문제 중 ${matchCount}문제 일치! 찰떡궁합 인증 🎉
+• 벌칙 면제! 전원 생존!`
+            : `💔 [MiniGame Hub] 🤝 이심전심 밸런스 (2인 커플) 실패! 💔
+방 코드: ${currentRoom.id}
+일시: ${dateStr}
+
+😅 텔레파시 결과:
+• 3문제 중 ${matchCount}문제만 일치! (동상이몽)
+• 둘 다 벌칙 당첨 👉 ${penaltyText}`;
+
+          if (navigator.share) {
+            try { await navigator.share({ text: shareText }); return; } catch (e) { if (e.name === 'AbortError') return; }
+          }
+          navigator.clipboard.writeText(shareText).then(() => {
+            showAlert('카카오톡 공유 결과가 복사되었습니다!\n단톡방에 붙여넣기(Ctrl+V)하세요.', { title: '복사 완료', icon: '📋' });
+          });
+        };
+
+      } else {
+        // 3인 이상 소수파 벌칙 / 만장일치 / 동률
+        if (isUnanimous) {
+          if (els.resultGraphic) els.resultGraphic.textContent = '🙌🎉';
+          if (els.resultTitle) {
+            els.resultTitle.textContent = '전원 만장일치 대성공!';
+            els.resultTitle.className = 'text-2xl font-black text-emerald-400 tracking-tight leading-tight';
+          }
+          if (els.resultSubTitle) {
+            els.resultSubTitle.textContent = '🎯 참가자 전원의 의견이 완벽히 일치했습니다!';
+            els.resultSubTitle.className = 'text-xs font-bold text-emerald-300 tracking-wider';
+          }
+          if (els.resultLoserName) {
+            els.resultLoserName.textContent = '모든 참가자 전원 생존!';
+            els.resultLoserName.className = 'text-2xl sm:text-3xl font-black text-emerald-300 py-0.5';
+          }
+          if (els.resultPenaltyText) {
+            els.resultPenaltyText.textContent = '벌칙 면제! 기적 같은 팀워크였습니다 👏';
+            els.resultPenaltyText.className = 'text-base sm:text-lg font-black text-emerald-400';
+          }
+        } else if (isDraw) {
+          if (els.resultGraphic) els.resultGraphic.textContent = '⚖️😲';
+          if (els.resultTitle) {
+            els.resultTitle.textContent = '황금 밸런스 동률 (무승부)!';
+            els.resultTitle.className = 'text-2xl font-black text-blue-400 tracking-tight leading-tight';
+          }
+          if (els.resultSubTitle) {
+            els.resultSubTitle.textContent = '⚖️ 50:50 완벽한 팽팽함! 소수파가 없습니다';
+            els.resultSubTitle.className = 'text-xs font-bold text-blue-300 tracking-wider';
+          }
+          if (els.resultLoserName) {
+            els.resultLoserName.textContent = '황금 밸런스 무승부';
+            els.resultLoserName.className = 'text-2xl sm:text-3xl font-black text-blue-300 py-0.5';
+          }
+          if (els.resultPenaltyText) {
+            els.resultPenaltyText.textContent = '벌칙자 없음! 전원 생존 (또는 재대결 진행)';
+            els.resultPenaltyText.className = 'text-base sm:text-lg font-black text-blue-400';
+          }
+        } else {
+          // 소수파 벌칙 당첨!
+          if (els.resultGraphic) els.resultGraphic.textContent = '🔥😈';
+          if (els.resultTitle) {
+            els.resultTitle.textContent = '소수파 독박 벌칙 당첨!';
+            els.resultTitle.className = 'text-2xl font-black text-rose-500 tracking-tight leading-tight';
+          }
+          if (els.resultSubTitle) {
+            els.resultSubTitle.textContent = '⚡ 다수결의 선택을 받지 못한 소수파 확정!';
+            els.resultSubTitle.className = 'text-xs font-bold text-rose-300 tracking-wider';
+          }
+          if (els.resultLoserName) {
+            els.resultLoserName.textContent = loserText;
+            els.resultLoserName.className = 'text-2xl sm:text-3xl font-black text-amber-300 py-0.5';
+          }
+          if (els.resultPenaltyText) {
+            els.resultPenaltyText.textContent = `[수행할 벌칙] ${penaltyText}`;
+            els.resultPenaltyText.className = 'text-base sm:text-lg font-black text-amber-300';
+          }
+        }
+
+        // 카카오 공유
+        els.btnShareKakao.onclick = async () => {
+          const now = new Date();
+          const pad = n => String(n).padStart(2, '0');
+          const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+          let shareBody = '';
+          if (isUnanimous) {
+            shareBody = `🙌 전원 만장일치 성공!\n• 모든 참가자 텔레파시 일치 (전원 생존)`;
+          } else if (isDraw) {
+            shareBody = `⚖️ 황금 밸런스 동률 (무승부)!\n• 50:50 팽팽한 대립으로 벌칙자 없음!`;
+          } else {
+            shareBody = `🔥 소수파 독박 벌칙 당첨!\n• 벌칙 당첨자: ${loserText}\n• 수행 벌칙: ${penaltyText}`;
+          }
+
+          const shareText = `🏆 [MiniGame Hub] 🤝 이심전심 밸런스 결과! 🏆
+방 코드: ${currentRoom.id}
+일시: ${dateStr}
+
+${shareBody}`;
+
+          if (navigator.share) {
+            try { await navigator.share({ text: shareText }); return; } catch (e) { if (e.name === 'AbortError') return; }
+          }
+          navigator.clipboard.writeText(shareText).then(() => {
+            showAlert('카카오톡 공유 결과가 복사되었습니다!\n단톡방에 붙여넣기(Ctrl+V)하세요.', { title: '복사 완료', icon: '📋' });
+          });
+        };
+      }
+
+    } else if (isTelepathy) {
 
     if (isTelepathy) {
       const isSuccess = data.isSuccess;
@@ -1401,6 +1780,85 @@ document.addEventListener('DOMContentLoaded', () => {
       renderResult(data);
       showView('result');
     }, 1000);
+  });
+
+  // [3호 게임: 이심전심 밸런스] 투표 진행 알림
+  socket.on('balanceVoteProgress', (data) => {
+    console.log('[Socket] balanceVoteProgress received:', data);
+    currentRoom = data.room;
+    showView('game');
+    try {
+      renderBalanceGame(data.room);
+    } catch (e) {
+      console.error('[Error] renderBalanceGame on balanceVoteProgress:', e);
+    }
+  });
+
+  // [3호 게임: 이심전심 밸런스] 라운드 결과 공개 (커플 모드)
+  socket.on('balanceRoundRevealed', (data) => {
+    console.log('[Socket] balanceRoundRevealed received:', data);
+    currentRoom = data.room;
+    showView('game');
+    if (data.result && data.result.isMatched) {
+      try { if (window.soundFx.playSafe) window.soundFx.playSafe(); } catch (e) {}
+      window.soundFx.vibrate(50);
+    } else {
+      try { if (window.soundFx.playChomp) window.soundFx.playChomp(); } catch (e) {}
+      window.soundFx.vibrate([100, 50, 100]);
+    }
+    try {
+      renderBalanceGame(data.room);
+    } catch (e) {
+      console.error('[Error] renderBalanceGame on balanceRoundRevealed:', e);
+    }
+  });
+
+  // [3호 게임: 이심전심 밸런스] 다음 문제 출제
+  socket.on('balanceNextQuestion', (data) => {
+    console.log('[Socket] balanceNextQuestion received:', data);
+    currentRoom = data.room;
+    showView('game');
+    try {
+      if (window.soundFx.playSafe) window.soundFx.playSafe();
+    } catch (e) {}
+    try {
+      renderBalanceGame(data.room);
+    } catch (e) {
+      console.error('[Error] renderBalanceGame on balanceNextQuestion:', e);
+    }
+  });
+
+  // [3호 게임: 이심전심 밸런스] 최종 게임 종료
+  socket.on('balanceFinished', (data) => {
+    console.log('[Socket] balanceFinished received:', data);
+    currentRoom = data.room;
+
+    // 인게임 화면에서 마지막 투표 결과 먼저 공개
+    try {
+      renderBalanceGame(data.room);
+    } catch (e) {}
+
+    if (data.isSuccess || data.isUnanimous) {
+      try { if (window.soundFx.playVictory) window.soundFx.playVictory(); } catch (e) {}
+      window.soundFx.vibrate([100, 50, 100, 50, 300]);
+    } else if (data.isDraw) {
+      try { if (window.soundFx.playSafe) window.soundFx.playSafe(); } catch (e) {}
+      window.soundFx.vibrate(50);
+    } else {
+      try {
+        if (window.soundFx.playHeartBreak) window.soundFx.playHeartBreak();
+        else if (window.soundFx.playChomp) window.soundFx.playChomp();
+      } catch (e) {}
+      window.soundFx.vibrate([200, 100, 300]);
+      els.mainContainer.classList.add('shake-effect');
+      setTimeout(() => els.mainContainer.classList.remove('shake-effect'), 500);
+    }
+
+    // 결과 화면 전환 (1.8초 뒤)
+    setTimeout(() => {
+      renderResult(data);
+      showView('result');
+    }, 1800);
   });
 
   socket.on('roomDestroyed', (data) => {

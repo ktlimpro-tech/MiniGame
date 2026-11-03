@@ -356,8 +356,8 @@
               <option value="telepathy">
                 🧠 2호. 침묵의 텔레파시 (협동 카드 내기)
               </option>
-              <option value="liar" disabled>
-                🕵️ 3호. 다음 미니게임 (준비 중)
+              <option value="balance">
+                🤝 3호. 이심전심 밸런스 (공감 & 소수파 벌칙)
               </option>
             </select>
           </div>
@@ -386,6 +386,37 @@
             </select>
             <div id="telepathyCapHelpText" class="text-[10px] text-slate-400">
               ※ 참여 인원이 많아지면 숫자 간격 유지를 위해 최대 장수가 안전하게 자동 조절됩니다.
+            </div>
+          </div>
+
+          <!-- 3호 밸런스 전용 세부 설정: 2인 협동 vs 3인 소수파 모드 (방장 전용) -->
+          <div
+            id="balanceSettingsGroup"
+            class="hidden p-4 rounded-2xl bg-purple-950/40 border border-purple-500/40 space-y-2 transition-all duration-200"
+          >
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-bold text-purple-300"
+                >🤝 진행 모드</span
+              >
+              <span id="balanceModeNotice" class="text-[11px] text-purple-300/80 font-medium"
+                >인원수 자동 맞춤</span
+              >
+            </div>
+            <!-- 2인일 때 노출되는 안내 뱃지 -->
+            <div id="balanceCoupleNoticeBox" class="hidden p-2.5 rounded-xl bg-purple-900/50 border border-purple-500/40 text-xs font-semibold text-purple-200 flex items-center gap-2">
+              <span class="text-base">❤️</span>
+              <span>2인 모드: <strong>둘만의 이심전심</strong> (3문제 중 2문제 이상 일치 시 성공)</span>
+            </div>
+            <!-- 3인 이상일 때 노출되는 선택 드롭다운 -->
+            <select
+              id="selectBalanceMode"
+              class="w-full p-2.5 rounded-xl bg-slate-900 border border-purple-700/60 text-slate-100 font-bold text-sm focus:outline-none focus:border-purple-400"
+            >
+              <option value="minority" selected>🔥 소수파 독박 벌칙 (추천! 다수와 다른 사람 벌칙)</option>
+              <option value="consensus">🤝 전원 만장일치 도전 (팀 전원 같은 선택 목표)</option>
+            </select>
+            <div class="text-[10px] text-slate-400">
+              ※ 2명일 땐 둘만의 이심전심 모드로, 3명 이상일 땐 소수파 독박 벌칙 모드로 자동 최적화됩니다.
             </div>
           </div>
 
@@ -704,6 +735,96 @@
             <div id="telepathyTeamStatus" class="flex flex-wrap items-center justify-center gap-1.5 p-2 bg-slate-800/50 rounded-xl border border-slate-700/40 text-[11px]">
               <!-- 참가자별 남은 카드 수 뱃지 동적 주입 -->
             </div>
+          </div>
+        </div>
+
+        <!-- 3호: 이심전심 밸런스 (만장일치 & 소수파 벌칙) 컨테이너 -->
+        <div id="gameContainerBalance" class="hidden flex-1 flex flex-col justify-between py-1">
+          <!-- 상단 카테고리 및 진행률 바 -->
+          <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-3 shadow-lg space-y-2">
+            <div class="flex items-center justify-between">
+              <!-- 카테고리 뱃지 -->
+              <span id="balanceCategoryBadge" class="px-2.5 py-0.5 rounded-full bg-purple-900/80 border border-purple-500/50 text-xs font-black text-purple-200">
+                🍕 음식
+              </span>
+              <!-- 라운드 또는 모드 뱃지 -->
+              <span id="balanceModeBadge" class="text-xs font-bold text-amber-300">
+                🔥 소수파 독박 벌칙
+              </span>
+              <!-- 투표 현황 카운트 -->
+              <div class="bg-slate-900/90 border border-slate-700/70 px-2.5 py-0.5 rounded-full text-xs font-bold text-slate-300">
+                선택 완료 <span id="balanceVotedCountText" class="text-emerald-400 font-mono font-black">0</span> / <span id="balanceTotalPlayersText" class="text-slate-400 font-mono">0</span>명
+              </div>
+            </div>
+
+            <!-- 질문 텍스트 카드 -->
+            <div class="p-3 bg-slate-900/80 border border-slate-700/60 rounded-xl text-center shadow-inner">
+              <div class="text-[11px] text-purple-300 font-bold mb-0.5">Q. 이심전심 밸런스 질문</div>
+              <h3 id="balanceQuestionText" class="text-base sm:text-lg font-black text-slate-100 leading-snug">
+                질문을 불러오는 중입니다...
+              </h3>
+            </div>
+          </div>
+
+          <!-- 중앙 A vs B 선택지 대형 카드 버튼 영역 -->
+          <div class="flex-1 flex flex-col justify-center gap-3 my-2">
+            <!-- A 선택지 버튼 -->
+            <button
+              id="btnBalanceOptionA"
+              class="w-full p-4 rounded-2xl bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 border-2 border-slate-700 text-left transition transform active:scale-98 shadow-md flex flex-col gap-1 cursor-pointer"
+            >
+              <div class="flex items-center justify-between w-full">
+                <span class="px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/40 text-rose-300 font-black text-xs">A 선택지</span>
+                <span id="balanceCheckIconA" class="hidden text-base">✅ 내 선택</span>
+              </div>
+              <div id="balanceOptionAText" class="text-base sm:text-lg font-black text-slate-100 py-1">
+                선택지 A 내용
+              </div>
+              <!-- 투표 결과 공개 시 노출되는 선택자 칩 -->
+              <div id="balanceVotesListA" class="hidden flex flex-wrap gap-1 pt-1.5 border-t border-slate-700/60 text-[11px]">
+                <!-- 선택자 닉네임 칩 동적 주입 -->
+              </div>
+            </button>
+
+            <!-- 중앙 VS 구분선 -->
+            <div class="flex items-center justify-center my-0.5">
+              <span class="px-3 py-0.5 rounded-full bg-purple-900/60 border border-purple-500/40 text-[11px] font-black text-purple-300 tracking-wider">VS</span>
+            </div>
+
+            <!-- B 선택지 버튼 -->
+            <button
+              id="btnBalanceOptionB"
+              class="w-full p-4 rounded-2xl bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 border-2 border-slate-700 text-left transition transform active:scale-98 shadow-md flex flex-col gap-1 cursor-pointer"
+            >
+              <div class="flex items-center justify-between w-full">
+                <span class="px-2 py-0.5 rounded-md bg-blue-500/20 border border-blue-500/40 text-blue-300 font-black text-xs">B 선택지</span>
+                <span id="balanceCheckIconB" class="hidden text-base">✅ 내 선택</span>
+              </div>
+              <div id="balanceOptionBText" class="text-base sm:text-lg font-black text-slate-100 py-1">
+                선택지 B 내용
+              </div>
+              <!-- 투표 결과 공개 시 노출되는 선택자 칩 -->
+              <div id="balanceVotesListB" class="hidden flex flex-wrap gap-1 pt-1.5 border-t border-slate-700/60 text-[11px]">
+                <!-- 선택자 닉네임 칩 동적 주입 -->
+              </div>
+            </button>
+          </div>
+
+          <!-- 하단 안내 배너 및 2인 다음 문제 버튼 -->
+          <div class="space-y-1.5">
+            <div
+              id="balanceStatusBanner"
+              class="text-center text-xs font-bold text-slate-300 bg-slate-800/80 py-2 px-3 rounded-xl border border-slate-700/60"
+            >
+              마음이 통할 선택지를 신중하게 골라주세요!
+            </div>
+            <!-- 2인 커플 모드에서 다음 문제 진행 버튼 (방장만 노출) -->
+            <button
+              id="btnBalanceNextQuestion"
+              class="hidden w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-sm transition shadow active:scale-95 cursor-pointer"
+            >
+              다음 문제로 넘어가기 👉
+            </button>
           </div>
         </div>
 
