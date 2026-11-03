@@ -22,17 +22,17 @@ describe('🧠 2호 협동 게임: 침묵의 텔레파시 (TelepathyGame) 단위
     game = room.activeGame;
   });
 
-  it('게임 시작 시 하트 3개와 각 플레이어별 고유 카드가 오름차순 정렬되어 지급되어야 한다', () => {
+  it('게임 시작 시 2인 기준 하트 2개와 각 플레이어별 4장의 고유 카드가 오름차순 정렬되어 지급되어야 한다', () => {
     assert.ok(game instanceof TelepathyGame);
-    assert.strictEqual(game.hearts, 3);
-    assert.strictEqual(game.maxHearts, 3);
+    assert.strictEqual(game.hearts, 2);
+    assert.strictEqual(game.maxHearts, 2);
     assert.strictEqual(game.status, 'PLAYING');
 
-    // 2인 플레이 시 1인당 기본 2장 = 총 4장
+    // 2인 플레이 시 1인당 4장 = 총 8장
     const cards1 = game.playerCards.get(p1.token);
     const cards2 = game.playerCards.get(p2.token);
-    assert.strictEqual(cards1.length, 2);
-    assert.strictEqual(cards2.length, 2);
+    assert.strictEqual(cards1.length, 4);
+    assert.strictEqual(cards2.length, 4);
 
     // 오름차순 정렬 검증
     for (let i = 0; i < cards1.length - 1; i++) {
@@ -55,7 +55,7 @@ describe('🧠 2호 협동 게임: 침묵의 텔레파시 (TelepathyGame) 단위
     // p1 시점에서는 p1의 myCards만 보임
     assert.deepStrictEqual(stateP1.myCards, game.playerCards.get(p1.token));
     // p1 시점에서 p2의 핸드 카드는 숫자 대신 장수(playerHandCounts)로만 노출
-    assert.strictEqual(stateP1.playerHandCounts[p2.token], 2);
+    assert.strictEqual(stateP1.playerHandCounts[p2.token], 4);
 
     // p2 시점에서는 p2의 myCards만 보임
     assert.deepStrictEqual(stateP2.myCards, game.playerCards.get(p2.token));
@@ -73,7 +73,7 @@ describe('🧠 2호 협동 게임: 침묵의 텔레파시 (TelepathyGame) 단위
     assert.strictEqual(res1.data.mistake, false);
     assert.strictEqual(res1.data.playedCard, 10);
     assert.strictEqual(game.discardPile[game.discardPile.length - 1].number, 10);
-    assert.strictEqual(game.hearts, 3); // 하트 보존
+    assert.strictEqual(game.hearts, 2); // 2인 기준 하트 2개 보존
 
     // 남은 전체 카드 수 3개
     assert.strictEqual(game.getTotalRemainingCards(), 3);
@@ -89,7 +89,7 @@ describe('🧠 2호 협동 게임: 침묵의 텔레파시 (TelepathyGame) 단위
     assert.strictEqual(res.success, true);
     assert.strictEqual(res.eventName, 'telepathyCardPlayed');
     assert.strictEqual(res.data.mistake, true);
-    assert.strictEqual(game.hearts, 2); // 하트 1개 깎임!
+    assert.strictEqual(game.hearts, 1); // 2인 기준 하트 2개 중 1개 깎여서 1개 남음!
     assert.strictEqual(res.data.skippedCards.length, 1);
     assert.strictEqual(res.data.skippedCards[0].number, 20);
 
@@ -125,6 +125,21 @@ describe('🧠 2호 협동 게임: 침묵의 텔레파시 (TelepathyGame) 단위
     assert.strictEqual(game.status, 'SUCCESS');
     assert.strictEqual(res2.data.isSuccess, true);
     assert.strictEqual(room.status, 'RESULT');
+  });
+
+  it('실수로 인해 동료의 카드가 스킵되어 0장이 된 경우 성공이 아니라 실패(FAILED)로 끝나야 한다', () => {
+    // p1: [80], p2: [10] (하트가 2개 남아있어도 실수가 발생하여 카드가 날아감)
+    game.hearts = 2;
+    game.playerCards.set(p1.token, [80]);
+    game.playerCards.set(p2.token, [10]);
+
+    // p1이 80을 냄 -> p2의 10이 스킵되어 양쪽 다 0장이 됨
+    const res = game.handleAction(p1.token, 'playCard');
+    assert.strictEqual(res.success, true);
+    assert.strictEqual(game.status, 'FAILED');
+    assert.strictEqual(res.data.isSuccess, false);
+    assert.strictEqual(room.status, 'RESULT');
+    assert.strictEqual(res.data.loser.token, p1.token);
   });
 
   it('손패가 없는 플레이어가 카드를 내려고 하면 에러를 반환해야 한다', () => {

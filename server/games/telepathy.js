@@ -22,9 +22,22 @@ class TelepathyGame {
 
   init() {
     const playerCount = this.room.players.length;
-    // 인원수가 많으면(5인 이상) 1인당 1장, 적으면 2장
-    this.cardsPerPlayer = playerCount >= 5 ? 1 : 2;
-    this.hearts = 3;
+    // 인원수별 최적 밸런스 설정:
+    // 2인: 4장씩(총 8장), 하트 2개 (실수 2회 시 즉시 게임오버)
+    // 3인: 3장씩(총 9장), 하트 3개
+    // 4인: 3장씩(총 12장), 하트 3개
+    // 5인 이상: 2장씩, 하트 3개
+    if (playerCount <= 2) {
+      this.cardsPerPlayer = 4;
+      this.hearts = 2;
+    } else if (playerCount <= 4) {
+      this.cardsPerPlayer = 3;
+      this.hearts = 3;
+    } else {
+      this.cardsPerPlayer = 2;
+      this.hearts = 3;
+    }
+    this.maxHearts = this.hearts;
     this.discardPile = [];
     this.lastPlayedCard = null;
     this.status = 'PLAYING';
@@ -44,7 +57,7 @@ class TelepathyGame {
       this.playerCards.set(player.token, hand);
     }
 
-    console.log(`[Telepathy] Initialized for ${playerCount} players. Cards per player: ${this.cardsPerPlayer}`);
+    console.log(`[Telepathy] Initialized for ${playerCount} players. Cards per player: ${this.cardsPerPlayer}, Hearts: ${this.hearts}`);
   }
 
   // 전체 남은 카드 개수
@@ -138,9 +151,38 @@ class TelepathyGame {
         };
       }
 
-      // 2. 모든 카드가 소진되었는지 확인 ➔ 미션 대성공!
+      // 2. 모든 카드가 소진되었는지 확인
       const remainingTotal = this.getTotalRemainingCards();
       if (remainingTotal === 0) {
+        if (isError) {
+          // 방금 카드를 잘못 내어 동료의 작은 카드가 강제로 스킵(손실)되면서 카드가 끝난 경우 ➔ 미션 실패!
+          this.status = 'FAILED';
+          const results = this.room.players.map(p => ({
+            token: p.token,
+            nickname: p.nickname,
+            isLoser: p.token === player.token, // 마지막으로 실수한 사람을 주 패배자로 표시
+            role: '팀 미션 실패 (카드 손실)'
+          }));
+          this.room.finishGame(results);
+
+          return {
+            success: true,
+            broadcast: true,
+            roomId: this.room.id,
+            eventName: 'telepathyFinished',
+            data: {
+              isSuccess: false,
+              loser: { token: player.token, nickname: player.nickname },
+              reason: '실수로 인해 동료의 카드가 스킵되어 미션에 실패했습니다!',
+              lastCard: this.lastPlayedCard,
+              hearts: this.hearts,
+              discardPile: this.discardPile,
+              room: this.room.toState()
+            }
+          };
+        }
+
+        // 정상적인 순서로 모든 카드를 소진했을 때만 미션 대성공!
         this.status = 'SUCCESS';
         const results = this.room.players.map(p => ({
           token: p.token,

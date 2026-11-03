@@ -1055,11 +1055,11 @@ document.addEventListener('DOMContentLoaded', () => {
           els.resultTitle.className = 'text-2xl font-black text-rose-500 tracking-tight leading-tight';
         }
         if (els.resultSubTitle) {
-          els.resultSubTitle.textContent = '💔 하트가 모두 소진되었습니다';
+          els.resultSubTitle.textContent = data.reason ? `💔 ${data.reason}` : '💔 하트가 모두 소진되었습니다';
           els.resultSubTitle.className = 'text-xs font-bold text-rose-300 tracking-wider';
         }
         if (els.resultLoserName) {
-          els.resultLoserName.textContent = data.loser ? `${data.loser.nickname} (마지막 실수)` : '팀 전원 탈락';
+          els.resultLoserName.textContent = data.loser ? `${data.loser.nickname} (실수 당첨)` : '팀 전원 탈락';
           els.resultLoserName.className = 'text-2xl sm:text-3xl font-black text-slate-100 py-0.5';
         }
         if (els.resultPenaltyText) {
