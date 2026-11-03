@@ -48,6 +48,10 @@ class Room {
     return this.players.find(p => p.isHost);
   }
 
+  getConnectedPlayersCount() {
+    return this.players.filter(p => p.isConnected).length;
+  }
+
   addOrReconnectPlayer(socketId, nickname, token = null) {
     this.touch();
     if (token) {

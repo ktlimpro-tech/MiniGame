@@ -9,10 +9,12 @@ class RoomManager {
     this.ipWhitelist = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 
     this.MAX_ROOMS = 20;
-    this.GC_INTERVAL_MS = 30000; // 30초마다 검사
-    this.LOBBY_TIMEOUT_MS = 5 * 60 * 1000; // 대기실 5분 방치 시 자동 폭파
-    this.RESULT_TIMEOUT_MS = 10 * 60 * 1000; // 결과화면 10분 방치 시 자동 폭파
-    this.EMERGENCY_TIMEOUT_MS = 30 * 60 * 1000; // 30분 무조작 시 비상 정리
+    this.GC_INTERVAL_MS = 15000; // 15초마다 유휴 검사
+    this.EMPTY_ROOM_TIMEOUT_MS = 60 * 1000; // 전원 이탈 시 1분 유예 후 폭파
+    this.LOBBY_IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 대기실 마지막 활동 후 5분 유휴 시 폭파
+    this.RESULT_IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 결과 화면 종료 후 10분 유휴 시 폭파
+    this.PLAYING_IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 인게임 잠수 5분 유휴 시 폭파
+    this.EMERGENCY_TIMEOUT_MS = 30 * 60 * 1000; // 비상 30분 무조작 시 폭파
 
     this.startGarbageCollector();
   }
@@ -155,18 +157,35 @@ class RoomManager {
     setInterval(() => {
       const now = Date.now();
       for (const [code, room] of this.rooms.entries()) {
-        // 1. 대기실 5분 초과 방치 검사
-        if (room.status === 'LOBBY' && now - (room.lobbyEnteredAt || room.createdAt) > this.LOBBY_TIMEOUT_MS) {
-          this.destroyRoom(code, 'lobby_timeout');
+        const idleTime = now - room.lastActivityAt;
+        const connectedCount = room.getConnectedPlayersCount();
+
+        // 1. 모든 플레이어 연결 해제(0명) 상태에서 1분 경과 시 자동 폭파
+        if (connectedCount === 0 && idleTime > this.EMPTY_ROOM_TIMEOUT_MS) {
+          this.destroyRoom(code, 'all_players_disconnected');
           continue;
         }
-        // 2. 결과 화면 10분 초과 방치 검사
-        if (room.status === 'RESULT' && room.resultEnteredAt && now - room.resultEnteredAt > this.RESULT_TIMEOUT_MS) {
-          this.destroyRoom(code, 'result_timeout');
+
+        // 2. 대기실 유휴 5분 초과 검사 (마지막 조작/입장/설정변경 이후 5분간 아무것도 안 함)
+        if (room.status === 'LOBBY' && idleTime > this.LOBBY_IDLE_TIMEOUT_MS) {
+          this.destroyRoom(code, 'lobby_idle_timeout');
           continue;
         }
-        // 3. 비상 30분 무조작 검사
-        if (now - room.lastActivityAt > this.EMERGENCY_TIMEOUT_MS) {
+
+        // 3. 결과 화면 유휴 10분 초과 검사 (게임 종료 후 10분간 아무것도 안 하고 방치)
+        if (room.status === 'RESULT' && idleTime > this.RESULT_IDLE_TIMEOUT_MS) {
+          this.destroyRoom(code, 'result_idle_timeout');
+          continue;
+        }
+
+        // 4. 인게임 유휴 5분 초과 검사 (게임 진행 중 이빨을 안 누르고 5분간 잠수)
+        if (room.status === 'PLAYING' && idleTime > this.PLAYING_IDLE_TIMEOUT_MS) {
+          this.destroyRoom(code, 'playing_idle_timeout');
+          continue;
+        }
+
+        // 5. 비상 30분 무조작 검사
+        if (idleTime > this.EMERGENCY_TIMEOUT_MS) {
           this.destroyRoom(code, 'emergency_timeout');
           continue;
         }
