@@ -55,6 +55,11 @@ class SocketManager {
     this.socket.emit('createRoom', { nickname, settings }, callback);
   }
 
+  rejoinRoom(roomCode, token, callback) {
+    if (!this.socket) return;
+    this.socket.emit('rejoinRoom', { roomCode, token }, callback);
+  }
+
   joinRoom(roomCode, nickname, token, callback) {
     this.socket.emit('joinRoom', { roomCode, nickname, token }, callback);
   }

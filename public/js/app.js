@@ -340,6 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (isPressed) {
         tooth.className = 'tooth-btn tooth-pressed flex items-center justify-center';
+        tooth.innerHTML = '<span class="text-[10px] text-slate-500 font-bold">안전</span>';
         tooth.disabled = true;
       } else {
         tooth.className = `tooth-btn flex items-center justify-center font-black text-sm text-slate-700 ${
@@ -424,6 +425,17 @@ ${window.location.origin}`;
       });
     };
   }
+
+  // 소켓 재연결 시 방 자동 재참가
+  socket.on('connect', () => {
+    if (currentRoom && myToken) {
+      window.socketManager.rejoinRoom(currentRoom.id, myToken, (res) => {
+        if (res && res.success) {
+          console.log('[Socket] Rejoin room success:', currentRoom.id);
+        }
+      });
+    }
+  });
 
   // 소켓 브로드캐스트 이벤트 리스너
   socket.on('roomUpdated', (room) => {
