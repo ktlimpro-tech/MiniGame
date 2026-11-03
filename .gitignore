@@ -7,5 +7,7 @@ Thumbs.db
 .env
 .env.local
 dist/
+doc/
+HANDOVER.md
 coverage/
 *.log
