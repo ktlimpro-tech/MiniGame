@@ -1,0 +1,25 @@
+{
+  "name": "2026-minigame",
+  "version": "2.0.0",
+  "description": "2026 초스피드 웹 파티/내기 미니게임 허브 (MiniGame Hub)",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node --watch server/server.js",
+    "test": "node --test test/**/*.test.js"
+  },
+  "keywords": [
+    "minigame",
+    "party-game",
+    "socket.io",
+    "multiplayer",
+    "in-memory",
+    "mobile-web"
+  ],
+  "author": "Lim",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}
