@@ -325,6 +325,37 @@
       </div>
     </div>
 
+    <!-- 6. 범용 커스텀 알림/확인 모달 (Alert & Confirm) -->
+    <div id="modalDialog" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm transition-all duration-200">
+      <div class="w-full max-w-sm bg-slate-900 border border-slate-700/80 rounded-3xl p-5 shadow-2xl space-y-4 transform transition-all scale-100">
+        <!-- 헤더 -->
+        <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span id="modalDialogIcon" class="text-xl">📢</span>
+            <h3 id="modalDialogTitle" class="font-black text-slate-100 text-base">알림</h3>
+          </div>
+          <button id="btnCloseDialogModal" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-100 flex items-center justify-center transition text-sm">
+            ✕
+          </button>
+        </div>
+
+        <!-- 내용 -->
+        <div class="py-2">
+          <p id="modalDialogMessage" class="text-sm text-slate-200 leading-relaxed font-medium whitespace-pre-line text-center"></p>
+        </div>
+
+        <!-- 버튼 영역 -->
+        <div id="modalDialogActions" class="flex gap-2 pt-1">
+          <button id="btnDialogCancel" class="hidden flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm transition active:scale-95">
+            취소
+          </button>
+          <button id="btnDialogConfirm" class="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm transition active:scale-95 shadow">
+            확인
+          </button>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <script src="/js/audio.js"></script>

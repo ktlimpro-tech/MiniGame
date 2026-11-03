@@ -73,7 +73,16 @@ document.addEventListener('DOMContentLoaded', () => {
     modalInviteInput: document.getElementById('modalInviteInput'),
     btnModalCopy: document.getElementById('btnModalCopy'),
     btnCloseInviteModal: document.getElementById('btnCloseInviteModal'),
-    btnConfirmInviteModal: document.getElementById('btnConfirmInviteModal')
+    btnConfirmInviteModal: document.getElementById('btnConfirmInviteModal'),
+
+    // Custom Alert & Confirm Dialog
+    modalDialog: document.getElementById('modalDialog'),
+    modalDialogIcon: document.getElementById('modalDialogIcon'),
+    modalDialogTitle: document.getElementById('modalDialogTitle'),
+    modalDialogMessage: document.getElementById('modalDialogMessage'),
+    btnCloseDialogModal: document.getElementById('btnCloseDialogModal'),
+    btnDialogCancel: document.getElementById('btnDialogCancel'),
+    btnDialogConfirm: document.getElementById('btnDialogConfirm')
   };
 
   // 사운드 토글
@@ -169,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const roomCode = (targetCode || els.inputRoomCode.value).trim().toUpperCase();
 
     if (!roomCode || roomCode.length < 4) {
-      alert('방 코드 4자리를 입력해주세요.');
+      showAlert('방 코드 4자리를 정확히 입력해주세요.', { title: '입력 확인', icon: '🔑' });
       return;
     }
     localStorage.setItem('minigame_nickname', nickname);
@@ -192,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderLobby(res.room);
         showView('lobby');
       } else {
-        alert(res ? res.error : '방 참가 실패');
+        showAlert(res ? res.error : '방 참가에 실패했습니다.', { title: '참가 실패', icon: '⚠️' });
       }
     });
   }
@@ -211,7 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderLobby(res.room);
         showView('lobby');
       } else {
-        alert(res ? res.error : '방 생성 실패');
+        showAlert(res ? res.error : '방 생성에 실패했습니다.', { title: '생성 실패', icon: '⚠️' });
       }
     });
   });
@@ -261,6 +270,73 @@ document.addEventListener('DOMContentLoaded', () => {
   function hideInviteModal() {
     if (!els.modalInvite) return;
     els.modalInvite.classList.add('hidden');
+  }
+
+  // 범용 커스텀 팝업 (Alert / Confirm) - 브라우저 기본 창 완전 대체
+  let activeDialogResolve = null;
+
+  function closeDialog(result = false) {
+    if (!els.modalDialog) return;
+    els.modalDialog.classList.add('hidden');
+    if (typeof activeDialogResolve === 'function') {
+      activeDialogResolve(result);
+      activeDialogResolve = null;
+    }
+  }
+
+  function showAlert(message, options = {}) {
+    return new Promise((resolve) => {
+      if (!els.modalDialog) return resolve(true);
+      activeDialogResolve = resolve;
+
+      els.modalDialogTitle.textContent = options.title || '알림';
+      els.modalDialogIcon.textContent = options.icon || '📢';
+      els.modalDialogMessage.textContent = message;
+
+      els.btnDialogCancel.classList.add('hidden');
+      els.btnDialogConfirm.textContent = options.confirmText || '확인';
+      els.btnDialogConfirm.className = options.danger
+        ? 'flex-1 py-3 rounded-xl bg-rose-500 hover:bg-rose-400 text-slate-50 font-black text-sm transition active:scale-95 shadow'
+        : 'flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm transition active:scale-95 shadow';
+
+      els.modalDialog.classList.remove('hidden');
+    });
+  }
+
+  function showConfirm(message, options = {}) {
+    return new Promise((resolve) => {
+      if (!els.modalDialog) return resolve(false);
+      activeDialogResolve = resolve;
+
+      els.modalDialogTitle.textContent = options.title || '확인';
+      els.modalDialogIcon.textContent = options.icon || '❓';
+      els.modalDialogMessage.textContent = message;
+
+      els.btnDialogCancel.classList.remove('hidden');
+      els.btnDialogCancel.textContent = options.cancelText || '취소';
+
+      els.btnDialogConfirm.textContent = options.confirmText || '확인';
+      els.btnDialogConfirm.className = options.danger
+        ? 'flex-1 py-3 rounded-xl bg-rose-500 hover:bg-rose-400 text-slate-50 font-black text-sm transition active:scale-95 shadow'
+        : 'flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm transition active:scale-95 shadow';
+
+      els.modalDialog.classList.remove('hidden');
+    });
+  }
+
+  if (els.btnCloseDialogModal) {
+    els.btnCloseDialogModal.addEventListener('click', () => closeDialog(false));
+  }
+  if (els.btnDialogCancel) {
+    els.btnDialogCancel.addEventListener('click', () => closeDialog(false));
+  }
+  if (els.btnDialogConfirm) {
+    els.btnDialogConfirm.addEventListener('click', () => closeDialog(true));
+  }
+  if (els.modalDialog) {
+    els.modalDialog.addEventListener('click', (e) => {
+      if (e.target === els.modalDialog) closeDialog(false);
+    });
   }
 
   // 3. 초대 링크 복사 (브라우저 기본 alert 대신 세련된 커스텀 반응형 팝업)
@@ -353,23 +429,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }, () => {
       window.socketManager.startGame(currentRoom.id, myToken, (res) => {
         if (!res || !res.success) {
-          alert(res ? res.error : '게임 시작 실패');
+          showAlert(res ? res.error : '게임을 시작할 수 없습니다.', { title: '시작 실패', icon: '⚠️' });
         }
       });
     });
   });
 
   // 5. 방 나가기 (공통 처리 함수)
-  function handleLeaveRoom() {
+  async function handleLeaveRoom() {
     if (!currentRoom) return;
     const me = currentRoom.players.find(p => p.token === myToken);
     const isHost = me && me.isHost;
 
     const confirmMsg = isHost
-      ? '방장이 방을 나가면 방 전체가 해산됩니다.\n정말 나가시겠습니까?'
-      : '정말 방에서 나가시겠습니까?';
+      ? '방장이 나가면 방 전체가 해산됩니다.\n정말 방을 나가시겠습니까?'
+      : '현재 참여 중인 방에서 나가시겠습니까?';
 
-    if (!confirm(confirmMsg)) return;
+    const confirmed = await showConfirm(confirmMsg, {
+      title: isHost ? '방 해산 확인' : '방 나가기',
+      icon: '🚪',
+      confirmText: '나가기',
+      cancelText: '취소',
+      danger: true
+    });
+
+    if (!confirmed) return;
 
     const exitRoomId = currentRoom.id;
     window.socketManager.leaveRoom(exitRoomId, myToken, () => {
@@ -493,7 +577,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 els.teethGrid.style.pointerEvents = 'auto';
                 tooth.disabled = false;
                 tooth.classList.remove('tooth-pressed');
-                alert(res ? res.error : '조작 실패');
+                showAlert(res ? res.error : '이빨 조작에 실패했습니다.', { title: '조작 오류', icon: '⚠️' });
               } else if (res.data && res.data.room) {
                 // 성공 시 화면 즉시 최신 상태로 갱신 (지연 방지)
                 renderCrocodileGame(res.data.room);
@@ -541,14 +625,14 @@ ${window.location.origin}`;
       }
 
       navigator.clipboard.writeText(shareText).then(() => {
-        alert('카톡 공유 결과가 복사되었습니다! 단톡방에 붙여넣기(Ctrl+V)하세요.');
+        showAlert('카카오톡 공유 결과가 복사되었습니다!\n단톡방에 붙여넣기(Ctrl+V)하세요.', { title: '복사 완료', icon: '📋' });
       });
     };
 
     // 대기실로 리셋 버튼
     els.btnPlayAgain.onclick = () => {
       window.socketManager.resetToLobby(currentRoom.id, myToken, (res) => {
-        if (!res || !res.success) alert(res ? res.error : '대기실 복귀 실패');
+        if (!res || !res.success) showAlert(res ? res.error : '대기실 복귀에 실패했습니다.', { title: '복귀 실패', icon: '⚠️' });
       });
     };
   }
@@ -620,12 +704,17 @@ ${window.location.origin}`;
   });
 
   socket.on('roomDestroyed', (data) => {
-    alert('방이 해산되었거나 방장이 나갔습니다.');
-    if (currentRoom) {
-      clearSessionToken(currentRoom.id);
-    }
-    currentRoom = null;
-    myToken = null;
-    showView('home');
+    showAlert('방이 해산되었거나 방장이 퇴장했습니다.\n홈 화면으로 이동합니다.', {
+      title: '방 해산 안내',
+      icon: '🚪',
+      danger: true
+    }).then(() => {
+      if (currentRoom) {
+        clearSessionToken(currentRoom.id);
+      }
+      currentRoom = null;
+      myToken = null;
+      showView('home');
+    });
   });
 });
