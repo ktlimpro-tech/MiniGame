@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Lobby
     selectGameType: document.getElementById('selectGameType'),
+    roleNotice: document.getElementById('roleNotice'),
     inputPenalty: document.getElementById('inputPenalty'),
     playerCount: document.getElementById('playerCount'),
     lobbyPlayerList: document.getElementById('lobbyPlayerList'),
@@ -306,6 +307,36 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // 대기실 실시간 설정 동기화 (방장의 벌칙 수정 및 게임 모드 변경)
+  let penaltyDebounceTimer = null;
+  function syncRoomSettings(immediate = false) {
+    if (!currentRoom || !myToken) return;
+    const me = currentRoom.players.find(p => p.token === myToken);
+    if (!me || !me.isHost) return;
+
+    const doSync = () => {
+      const penalty = els.inputPenalty.value.trim() || '오늘 커피 쏘기! ☕';
+      const gameType = els.selectGameType.value || 'crocodile';
+      window.socketManager.updateSettings(currentRoom.id, myToken, {
+        gameType,
+        roles: [penalty, '생존 (통과)']
+      });
+    };
+
+    if (immediate) {
+      clearTimeout(penaltyDebounceTimer);
+      doSync();
+    } else {
+      clearTimeout(penaltyDebounceTimer);
+      penaltyDebounceTimer = setTimeout(doSync, 200);
+    }
+  }
+
+  els.inputPenalty.addEventListener('input', () => syncRoomSettings(false));
+  els.inputPenalty.addEventListener('change', () => syncRoomSettings(true));
+  els.inputPenalty.addEventListener('blur', () => syncRoomSettings(true));
+  els.selectGameType.addEventListener('change', () => syncRoomSettings(true));
+
   // 4. 게임 시작 클릭 (방장)
   els.btnStartGame.addEventListener('click', () => {
     if (!currentRoom) return;
@@ -358,6 +389,21 @@ document.addEventListener('DOMContentLoaded', () => {
     els.selectGameType.disabled = !isHost;
     els.inputPenalty.disabled = !isHost;
     els.btnStartGame.classList.toggle('hidden', !isHost);
+
+    // 벌칙 텍스트 및 게임 모드 실시간 동기화
+    const penaltyText = (room.settings && room.settings.roles && room.settings.roles[0]) || '오늘 커피 쏘기! ☕';
+    // 방장이 직접 타이핑하고 있는 중이 아닐 때만 동기화 (커서 튐 방지)
+    if (!isHost || document.activeElement !== els.inputPenalty) {
+      els.inputPenalty.value = penaltyText;
+    }
+    if (room.settings && room.settings.gameType) {
+      els.selectGameType.value = room.settings.gameType;
+    }
+
+    if (els.roleNotice) {
+      els.roleNotice.textContent = isHost ? '방장 설정 가능' : '방장이 실시간 설정 중';
+      els.roleNotice.className = isHost ? 'text-[11px] text-amber-400 font-semibold' : 'text-[11px] text-slate-400 font-semibold';
+    }
 
     els.lobbyPlayerList.innerHTML = room.players.map(p => {
       const isMe = p.token === myToken;

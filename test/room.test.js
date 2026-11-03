@@ -89,4 +89,13 @@ describe('🏠 공통 Room 라이프사이클 및 설정 테스트', () => {
     const res3 = room.addOrReconnectPlayer('socket-5', '홍길동');
     assert.strictEqual(res3.player.nickname, '홍길동(2)');
   });
+
+  it('대기실에서 벌칙 및 설정을 변경하면 즉시 반영되어야 한다', () => {
+    const updateRes = room.updateSettings({
+      roles: ['아이스크림 쏘기 🍦', '생존 (통과)']
+    });
+    assert.strictEqual(updateRes.success, true);
+    assert.strictEqual(room.settings.roles[0], '아이스크림 쏘기 🍦');
+    assert.strictEqual(updateRes.room.settings.roles[0], '아이스크림 쏘기 🍦');
+  });
 });
