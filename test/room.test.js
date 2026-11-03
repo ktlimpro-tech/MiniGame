@@ -56,4 +56,20 @@ describe('🏠 공통 Room 라이프사이클 및 설정 테스트', () => {
     assert.strictEqual(reconRes.player.socketId, 'socket-new');
     assert.strictEqual(room.players.length, 2); // 인원수 증가 없음
   });
+
+  it('서로 다른 토큰을 가진 독립된 플레이어 2명이 입장하면 방 인원은 2명이 되어야 한다', () => {
+    // 플레이어 1: 방장
+    assert.strictEqual(room.players.length, 1);
+    
+    // 플레이어 2: 새 플레이어 (token 없이 신규 입장)
+    const joinRes2 = room.addOrReconnectPlayer('socket-guest', '게스트1');
+    assert.strictEqual(joinRes2.success, true);
+    assert.strictEqual(joinRes2.isReconnect, false);
+    assert.strictEqual(room.players.length, 2);
+
+    // 플레이어 3: 또 다른 플레이어
+    const joinRes3 = room.addOrReconnectPlayer('socket-guest2', '게스트2');
+    assert.strictEqual(joinRes3.success, true);
+    assert.strictEqual(room.players.length, 3);
+  });
 });

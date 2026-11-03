@@ -1,9 +1,21 @@
 document.addEventListener('DOMContentLoaded', () => {
   const socket = window.socketManager.connect();
 
-  let myToken = localStorage.getItem('minigame_token') || null;
+  let myToken = null;
   let currentRoom = null;
   let isSoundEnabled = true;
+
+  // 세션 스토리지 기반 방별 토큰 관리 (탭/창 간 토큰 충돌 원천 차단)
+  const getSessionToken = (roomCode) => roomCode ? sessionStorage.getItem(`minigame_token_${roomCode}`) : null;
+  const setSessionToken = (roomCode, token) => {
+    if (roomCode && token) sessionStorage.setItem(`minigame_token_${roomCode}`, token);
+  };
+  const clearSessionToken = (roomCode) => {
+    if (roomCode) sessionStorage.removeItem(`minigame_token_${roomCode}`);
+  };
+
+  // 기존 localStorage에 혹시 남아있을 수 있는 단일 minigame_token 삭제 (이전 버전 잔여 데이터 정리)
+  localStorage.removeItem('minigame_token');
 
   // DOM 요소 선택자
   const els = {
@@ -58,7 +70,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 닉네임 자동 복원
   const savedNick = localStorage.getItem('minigame_nickname');
-  if (savedNick && els.inputNickname) els.inputNickname.value = savedNick;
+  if (savedNick && els.inputNickname) {
+    els.inputNickname.value = savedNick;
+  }
 
   // 화면 전환 헬퍼
   function showView(viewName) {
@@ -87,6 +101,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const inviteCode = urlParams.get('room');
   if (inviteCode && els.inputRoomCode) {
     els.inputRoomCode.value = inviteCode.toUpperCase();
+    
+    // 만약 이 창(탭)에서 이미 해당 방에 참여 중이던 토큰이 남아있다면(새로고침 시) 자동 재연결 시도
+    const savedTokenForThisRoom = getSessionToken(inviteCode.toUpperCase());
+    if (savedTokenForThisRoom && savedNick) {
+      window.socketManager.joinRoom(inviteCode.toUpperCase(), savedNick, savedTokenForThisRoom, (res) => {
+        if (res && res.success) {
+          myToken = res.player.token;
+          setSessionToken(res.room.id, myToken);
+          currentRoom = res.room;
+          if (res.room.status === 'LOBBY') {
+            renderLobby(res.room);
+            showView('lobby');
+          } else if (res.room.status === 'PLAYING') {
+            renderCrocodileGame(res.room);
+            showView('game');
+          }
+        }
+      });
+    }
   }
 
   // 1. 방 만들기 클릭
@@ -98,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.socketManager.createRoom(nickname, { gameType: 'crocodile' }, (res) => {
       if (res && res.success) {
         myToken = res.token;
-        localStorage.setItem('minigame_token', myToken);
+        setSessionToken(res.room.id, myToken);
         currentRoom = res.room;
         renderLobby(res.room);
         showView('lobby');
@@ -119,10 +152,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     localStorage.setItem('minigame_nickname', nickname);
 
-    window.socketManager.joinRoom(roomCode, nickname, myToken, (res) => {
+    // 이 탭/창에서 해당 방에 저장된 토큰이 있는 경우에만 재연결 토큰 전달, 없으면 null(신규 참가)
+    const existingSessionToken = getSessionToken(roomCode);
+
+    window.socketManager.joinRoom(roomCode, nickname, existingSessionToken, (res) => {
       if (res && res.success) {
         myToken = res.player.token;
-        localStorage.setItem('minigame_token', myToken);
+        setSessionToken(res.room.id, myToken);
         currentRoom = res.room;
         renderLobby(res.room);
         showView('lobby');
@@ -136,9 +172,15 @@ document.addEventListener('DOMContentLoaded', () => {
   els.btnCopyInvite.addEventListener('click', () => {
     if (!currentRoom) return;
     const inviteUrl = `${window.location.origin}?room=${currentRoom.id}`;
-    navigator.clipboard.writeText(inviteUrl).then(() => {
-      alert('초대 링크가 복사되었습니다! 카톡으로 친구들에게 공유하세요.');
-    });
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(inviteUrl).then(() => {
+        alert(`초대 링크가 복사되었습니다!\n${inviteUrl}\n다른 창이나 친구들에게 공유하세요.`);
+      }).catch(() => {
+        prompt('초대 링크를 복사하세요:', inviteUrl);
+      });
+    } else {
+      prompt('초대 링크를 복사하세요:', inviteUrl);
+    }
   });
 
   // 4. 게임 시작 클릭 (방장)
@@ -159,8 +201,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // 5. 방 나가기
   els.btnLeaveLobby.addEventListener('click', () => {
     if (!currentRoom) return;
-    window.socketManager.leaveRoom(currentRoom.id, myToken, () => {
+    const exitRoomId = currentRoom.id;
+    window.socketManager.leaveRoom(exitRoomId, myToken, () => {
+      clearSessionToken(exitRoomId);
       currentRoom = null;
+      myToken = null;
       showView('home');
     });
   });
@@ -178,14 +223,17 @@ document.addEventListener('DOMContentLoaded', () => {
     els.inputPenalty.disabled = !isHost;
     els.btnStartGame.classList.toggle('hidden', !isHost);
 
-    els.lobbyPlayerList.innerHTML = room.players.map(p => `
-      <div class="p-3 rounded-xl border flex items-center justify-between ${
-        p.token === myToken ? 'bg-amber-500/10 border-amber-500/50 text-amber-200' : 'bg-slate-900 border-slate-800 text-slate-200'
-      }">
-        <span class="font-bold truncate">${p.nickname}</span>
-        ${p.isHost ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-black shrink-0">👑 방장</span>' : ''}
-      </div>
-    `).join('');
+    els.lobbyPlayerList.innerHTML = room.players.map(p => {
+      const isMe = p.token === myToken;
+      return `
+        <div class="p-3 rounded-xl border flex items-center justify-between ${
+          isMe ? 'bg-amber-500/10 border-amber-500/50 text-amber-200' : 'bg-slate-900 border-slate-800 text-slate-200'
+        }">
+          <span class="font-bold truncate">${p.nickname}${isMe ? ' (나)' : ''}</span>
+          ${p.isHost ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-black shrink-0">👑 방장</span>' : ''}
+        </div>
+      `;
+    }).join('');
   }
 
   // 7. 인게임 렌더링 (악어 이빨)
@@ -322,7 +370,7 @@ ${window.location.origin}`;
     renderCrocodileGame(data.room);
   });
 
-  // 꽝 이빨을 눌러 악어가 쾅 물었을 때 (극적인 연출!)
+  // 꽝 이빨을 눌러 악어가 쾅 물었을 때
   socket.on('gameFinished', (data) => {
     currentRoom = data.room;
 
@@ -349,7 +397,11 @@ ${window.location.origin}`;
 
   socket.on('roomDestroyed', (data) => {
     alert('방이 해산되었거나 방장이 나갔습니다.');
+    if (currentRoom) {
+      clearSessionToken(currentRoom.id);
+    }
     currentRoom = null;
+    myToken = null;
     showView('home');
   });
 });
