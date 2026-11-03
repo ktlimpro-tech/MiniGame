@@ -35,6 +35,12 @@ document.addEventListener('DOMContentLoaded', () => {
     inputRoomCode: document.getElementById('inputRoomCode'),
     btnCreateRoom: document.getElementById('btnCreateRoom'),
     btnJoinRoom: document.getElementById('btnJoinRoom'),
+    inviteBanner: document.getElementById('inviteBanner'),
+    inviteRoomDisplay: document.getElementById('inviteRoomDisplay'),
+    sectionNormalActions: document.getElementById('sectionNormalActions'),
+    sectionInviteActions: document.getElementById('sectionInviteActions'),
+    btnJoinInvited: document.getElementById('btnJoinInvited'),
+    btnSwitchToCreate: document.getElementById('btnSwitchToCreate'),
 
     // Lobby
     selectGameType: document.getElementById('selectGameType'),
@@ -96,16 +102,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // 초대 모드 토글 함수
+  function setInviteMode(code) {
+    if (code && code.length >= 4) {
+      if (els.inviteBanner) els.inviteBanner.classList.remove('hidden');
+      if (els.inviteRoomDisplay) els.inviteRoomDisplay.textContent = code.toUpperCase();
+      if (els.sectionNormalActions) els.sectionNormalActions.classList.add('hidden');
+      if (els.sectionInviteActions) els.sectionInviteActions.classList.remove('hidden');
+      if (els.inputRoomCode) els.inputRoomCode.value = code.toUpperCase();
+    } else {
+      if (els.inviteBanner) els.inviteBanner.classList.add('hidden');
+      if (els.sectionNormalActions) els.sectionNormalActions.classList.remove('hidden');
+      if (els.sectionInviteActions) els.sectionInviteActions.classList.add('hidden');
+    }
+  }
+
   // URL 파라미터로 자동 방 코드 입력 (?room=CODE)
   const urlParams = new URLSearchParams(window.location.search);
   const inviteCode = urlParams.get('room');
-  if (inviteCode && els.inputRoomCode) {
-    els.inputRoomCode.value = inviteCode.toUpperCase();
-    
+  if (inviteCode && inviteCode.trim().length >= 4) {
+    const code = inviteCode.trim().toUpperCase();
+    setInviteMode(code);
+
     // 만약 이 창(탭)에서 이미 해당 방에 참여 중이던 토큰이 남아있다면(새로고침 시) 자동 재연결 시도
-    const savedTokenForThisRoom = getSessionToken(inviteCode.toUpperCase());
+    const savedTokenForThisRoom = getSessionToken(code);
     if (savedTokenForThisRoom && savedNick) {
-      window.socketManager.joinRoom(inviteCode.toUpperCase(), savedNick, savedTokenForThisRoom, (res) => {
+      window.socketManager.joinRoom(code, savedNick, savedTokenForThisRoom, (res) => {
         if (res && res.success) {
           myToken = res.player.token;
           setSessionToken(res.room.id, myToken);
@@ -120,6 +142,43 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
     }
+  }
+
+  // 초대 모드에서 '내가 새로운 게임 방 만들기'를 눌렀을 때
+  if (els.btnSwitchToCreate) {
+    els.btnSwitchToCreate.addEventListener('click', () => {
+      setInviteMode(null);
+      // URL에서 ?room 파라미터 제거
+      window.history.replaceState({}, document.title, window.location.pathname);
+    });
+  }
+
+  // 방 참여 공통 실행 함수
+  function executeJoinRoom(targetCode) {
+    window.soundFx.init();
+    const nickname = els.inputNickname.value.trim() || '참가자';
+    const roomCode = (targetCode || els.inputRoomCode.value).trim().toUpperCase();
+
+    if (!roomCode || roomCode.length < 4) {
+      alert('방 코드 4자리를 입력해주세요.');
+      return;
+    }
+    localStorage.setItem('minigame_nickname', nickname);
+
+    // 이 탭/창에서 해당 방에 저장된 토큰이 있는 경우에만 재연결 토큰 전달, 없으면 null(신규 참가)
+    const existingSessionToken = getSessionToken(roomCode);
+
+    window.socketManager.joinRoom(roomCode, nickname, existingSessionToken, (res) => {
+      if (res && res.success) {
+        myToken = res.player.token;
+        setSessionToken(res.room.id, myToken);
+        currentRoom = res.room;
+        renderLobby(res.room);
+        showView('lobby');
+      } else {
+        alert(res ? res.error : '방 참가 실패');
+      }
+    });
   }
 
   // 1. 방 만들기 클릭
@@ -141,31 +200,34 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 2. 방 참여하기 클릭
+  // 2-A. 일반 코드로 방 참여하기 클릭
   els.btnJoinRoom.addEventListener('click', () => {
-    window.soundFx.init();
-    const nickname = els.inputNickname.value.trim() || '참가자';
-    const roomCode = els.inputRoomCode.value.trim().toUpperCase();
-    if (!roomCode || roomCode.length < 4) {
-      alert('방 코드 4자리를 입력해주세요.');
-      return;
-    }
-    localStorage.setItem('minigame_nickname', nickname);
+    executeJoinRoom();
+  });
 
-    // 이 탭/창에서 해당 방에 저장된 토큰이 있는 경우에만 재연결 토큰 전달, 없으면 null(신규 참가)
-    const existingSessionToken = getSessionToken(roomCode);
-
-    window.socketManager.joinRoom(roomCode, nickname, existingSessionToken, (res) => {
-      if (res && res.success) {
-        myToken = res.player.token;
-        setSessionToken(res.room.id, myToken);
-        currentRoom = res.room;
-        renderLobby(res.room);
-        showView('lobby');
-      } else {
-        alert(res ? res.error : '방 참가 실패');
-      }
+  // 2-B. 초대 링크 전용 원클릭 바로 참여하기 클릭
+  if (els.btnJoinInvited) {
+    els.btnJoinInvited.addEventListener('click', () => {
+      const code = els.inviteRoomDisplay ? els.inviteRoomDisplay.textContent.trim() : null;
+      executeJoinRoom(code);
     });
+  }
+
+  // 닉네임 입력창에서 엔터(Enter) 키 입력 편의 지원
+  els.inputNickname.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const isInviteActive = !els.sectionInviteActions.classList.contains('hidden');
+      if (isInviteActive) {
+        const code = els.inviteRoomDisplay ? els.inviteRoomDisplay.textContent.trim() : null;
+        executeJoinRoom(code);
+      } else {
+        if (els.inputRoomCode && els.inputRoomCode.value.trim().length >= 4) {
+          executeJoinRoom();
+        } else {
+          els.btnCreateRoom.click();
+        }
+      }
+    }
   });
 
   // 3. 초대 링크 복사
