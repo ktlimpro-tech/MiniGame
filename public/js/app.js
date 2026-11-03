@@ -1470,8 +1470,6 @@ ${shareBody}`;
       }
 
     } else if (isTelepathy) {
-
-    if (isTelepathy) {
       const isSuccess = data.isSuccess;
       const penaltyText = (currentRoom && currentRoom.settings.roles[0]) || '오늘 커피 쏘기! ☕';
 
