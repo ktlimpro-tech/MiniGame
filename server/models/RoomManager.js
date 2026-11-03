@@ -77,27 +77,31 @@ class RoomManager {
   }
 
   updateSettings(roomCode, token, settings) {
-    const room = this.rooms.get(roomCode);
+    const code = roomCode ? roomCode.toUpperCase() : '';
+    const room = this.rooms.get(code);
     if (!room) return { success: false, error: '방을 찾을 수 없습니다.' };
     if (!room.isHost(token)) return { success: false, error: '방장만 설정을 변경할 수 있습니다.' };
     return room.updateSettings(settings);
   }
 
   startGame(roomCode, token) {
-    const room = this.rooms.get(roomCode);
+    const code = roomCode ? roomCode.toUpperCase() : '';
+    const room = this.rooms.get(code);
     if (!room) return { success: false, error: '방을 찾을 수 없습니다.' };
     if (!room.isHost(token)) return { success: false, error: '방장만 게임을 시작할 수 있습니다.' };
     return room.startGame();
   }
 
   handleGameAction(roomCode, token, action, payload) {
-    const room = this.rooms.get(roomCode);
+    const code = roomCode ? roomCode.toUpperCase() : '';
+    const room = this.rooms.get(code);
     if (!room) return { success: false, error: '방을 찾을 수 없습니다.' };
     return room.handleAction(token, action, payload);
   }
 
   resetToLobby(roomCode, token) {
-    const room = this.rooms.get(roomCode);
+    const code = roomCode ? roomCode.toUpperCase() : '';
+    const room = this.rooms.get(code);
     if (!room) return { success: false, error: '방을 찾을 수 없습니다.' };
     if (!room.isHost(token)) return { success: false, error: '방장만 대기실로 리셋할 수 있습니다.' };
     return room.resetToLobby();

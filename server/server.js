@@ -85,7 +85,10 @@ io.on('connection', (socket) => {
   socket.on('gameAction', ({ roomCode, token, action, payload }, callback) => {
     const result = roomManager.handleGameAction(roomCode, token, action, payload);
     if (result && result.broadcast) {
+      // 소켓 방 조인 안전 보장
+      socket.join(result.roomId);
       io.to(result.roomId).emit(result.eventName || 'gameUpdated', result.data);
+      console.log(`[GameAction] Room(${result.roomId}) action: ${action}, event: ${result.eventName}, nextPlayer: ${result.data?.nextPlayer?.nickname || result.data?.loser?.nickname}`);
     }
     if (typeof callback === 'function') callback(result);
   });

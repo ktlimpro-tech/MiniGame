@@ -308,6 +308,9 @@ document.addEventListener('DOMContentLoaded', () => {
     els.crocJawUpper.classList.remove('croc-jaw-closed');
     els.mainContainer.classList.remove('shake-effect');
 
+    // 이빨 클릭 활성화 (락 해제)
+    els.teethGrid.style.pointerEvents = 'auto';
+
     const isMyTurn = state.currentTurnToken === myToken;
 
     if (isMyTurn) {
@@ -346,14 +349,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (isMyTurn) {
           tooth.addEventListener('click', () => {
+            // 이빨 하나를 선택하는 즉시 다른 이빨들 전체 연타 차단 (Lock)
+            els.teethGrid.style.pointerEvents = 'none';
+
             window.soundFx.playClick();
             window.soundFx.vibrate(30);
             tooth.disabled = true;
             tooth.classList.add('tooth-pressed');
 
+            console.log(`[Game] Tooth #${i} clicked, sending to server... Room: ${room.id}`);
             window.socketManager.sendGameAction(room.id, myToken, 'pressTooth', { toothIndex: i }, (res) => {
+              console.log('[Game] sendGameAction response:', res);
               if (!res || !res.success) {
+                // 실패 시 락 해제 및 원래대로 복구
+                els.teethGrid.style.pointerEvents = 'auto';
+                tooth.disabled = false;
+                tooth.classList.remove('tooth-pressed');
                 alert(res ? res.error : '조작 실패');
+              } else if (res.data && res.data.room) {
+                // 성공 시 화면 즉시 최신 상태로 갱신 (지연 방지)
+                renderCrocodileGame(res.data.room);
               }
             });
           });
@@ -427,13 +442,19 @@ ${window.location.origin}`;
 
   // 안전한 이빨을 눌렀을 때
   socket.on('toothPressed', (data) => {
+    console.log('[Socket] toothPressed received:', data);
     currentRoom = data.room;
-    window.soundFx.playSafe();
+    try {
+      window.soundFx.playSafe();
+    } catch (e) {
+      console.warn('playSafe error:', e);
+    }
     renderCrocodileGame(data.room);
   });
 
   // 꽝 이빨을 눌러 악어가 쾅 물었을 때
   socket.on('gameFinished', (data) => {
+    console.log('[Socket] gameFinished received:', data);
     currentRoom = data.room;
 
     // 1. 악어 윗턱 닫힘 연출
@@ -447,7 +468,9 @@ ${window.location.origin}`;
     els.turnNoticeSub.textContent = '악어가 입을 쾅 닫았습니다!';
 
     // 3. 묵직한 사운드 & 진동
-    window.soundFx.playChomp();
+    try {
+      window.soundFx.playChomp();
+    } catch (e) {}
     window.soundFx.vibrate([80, 50, 80, 50, 300]);
 
     // 4. 1.2초 후 결과 화면으로 전환
