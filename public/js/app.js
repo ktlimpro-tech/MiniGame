@@ -63,7 +63,14 @@ document.addEventListener('DOMContentLoaded', () => {
     resultLoserName: document.getElementById('resultLoserName'),
     resultPenaltyText: document.getElementById('resultPenaltyText'),
     btnShareKakao: document.getElementById('btnShareKakao'),
-    btnPlayAgain: document.getElementById('btnPlayAgain')
+    btnPlayAgain: document.getElementById('btnPlayAgain'),
+
+    // Modal
+    modalInvite: document.getElementById('modalInvite'),
+    modalInviteInput: document.getElementById('modalInviteInput'),
+    btnModalCopy: document.getElementById('btnModalCopy'),
+    btnCloseInviteModal: document.getElementById('btnCloseInviteModal'),
+    btnConfirmInviteModal: document.getElementById('btnConfirmInviteModal')
   };
 
   // 사운드 토글
@@ -230,20 +237,73 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 3. 초대 링크 복사
+  // 커스텀 초대 모달 제어 함수
+  function showInviteModal(url) {
+    if (!els.modalInvite) return;
+    els.modalInviteInput.value = url;
+    els.btnModalCopy.textContent = '복사';
+    els.btnModalCopy.className = 'absolute right-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition active:scale-95 shadow';
+    els.modalInvite.classList.remove('hidden');
+    setTimeout(() => {
+      els.modalInviteInput.select();
+    }, 50);
+  }
+
+  function hideInviteModal() {
+    if (!els.modalInvite) return;
+    els.modalInvite.classList.add('hidden');
+  }
+
+  // 3. 초대 링크 복사 (브라우저 기본 alert 대신 세련된 커스텀 반응형 팝업)
   els.btnCopyInvite.addEventListener('click', () => {
     if (!currentRoom) return;
     const inviteUrl = `${window.location.origin}?room=${currentRoom.id}`;
+
+    // 1) 클립보드 자동 복사 백그라운드 시도
     if (navigator.clipboard) {
       navigator.clipboard.writeText(inviteUrl).then(() => {
-        alert(`초대 링크가 복사되었습니다!\n${inviteUrl}\n다른 창이나 친구들에게 공유하세요.`);
+        // 복사 성공 시 모달 오픈
+        showInviteModal(inviteUrl);
       }).catch(() => {
-        prompt('초대 링크를 복사하세요:', inviteUrl);
+        showInviteModal(inviteUrl);
       });
     } else {
-      prompt('초대 링크를 복사하세요:', inviteUrl);
+      showInviteModal(inviteUrl);
     }
   });
+
+  // 모달 내부 복사 버튼 클릭
+  if (els.btnModalCopy) {
+    els.btnModalCopy.addEventListener('click', () => {
+      const url = els.modalInviteInput.value;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(url).then(() => {
+          els.btnModalCopy.textContent = '✅ 복사됨!';
+          els.btnModalCopy.className = 'absolute right-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-black text-xs transition shadow';
+        }).catch(() => {
+          els.modalInviteInput.select();
+        });
+      } else {
+        els.modalInviteInput.select();
+        document.execCommand('copy');
+        els.btnModalCopy.textContent = '✅ 복사됨!';
+        els.btnModalCopy.className = 'absolute right-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-black text-xs transition shadow';
+      }
+    });
+  }
+
+  // 모달 닫기 이벤트 리스너들
+  if (els.btnCloseInviteModal) {
+    els.btnCloseInviteModal.addEventListener('click', hideInviteModal);
+  }
+  if (els.btnConfirmInviteModal) {
+    els.btnConfirmInviteModal.addEventListener('click', hideInviteModal);
+  }
+  if (els.modalInvite) {
+    els.modalInvite.addEventListener('click', (e) => {
+      if (e.target === els.modalInvite) hideInviteModal();
+    });
+  }
 
   // 4. 게임 시작 클릭 (방장)
   els.btnStartGame.addEventListener('click', () => {

@@ -281,6 +281,44 @@
       </div>
     </section>
 
+    <!-- 5. 초대 링크 커스텀 팝업 모달 (PC/모바일 반응형) -->
+    <div id="modalInvite" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm transition-all duration-200">
+      <div class="w-full max-w-sm bg-slate-900 border border-slate-700/80 rounded-3xl p-5 shadow-2xl space-y-4 transform transition-all scale-100">
+        <!-- 모달 헤더 -->
+        <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="text-xl">🔗</span>
+            <h3 class="font-black text-slate-100 text-base">게임 초대 링크</h3>
+          </div>
+          <button id="btnCloseInviteModal" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-100 flex items-center justify-center transition text-sm">
+            ✕
+          </button>
+        </div>
+
+        <!-- 모달 내용 -->
+        <div class="space-y-3">
+          <!-- 링크 인풋 박스 + 복사 버튼 -->
+          <div class="relative flex items-center">
+            <input type="text" id="modalInviteInput" readonly
+              class="w-full pl-3 pr-20 py-3 rounded-xl bg-slate-950 border border-slate-700 text-amber-300 font-mono text-xs focus:outline-none select-all" />
+            <button id="btnModalCopy" class="absolute right-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition active:scale-95 shadow">
+              복사
+            </button>
+          </div>
+
+          <!-- 안내 문구 -->
+          <p class="text-xs text-slate-400 text-center leading-relaxed font-medium">
+            다른 창이나 친구들에게 공유하세요.
+          </p>
+        </div>
+
+        <!-- 모달 하단 닫기/확인 버튼 -->
+        <button id="btnConfirmInviteModal" class="w-full py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm transition active:scale-95">
+          확인
+        </button>
+      </div>
+    </div>
+
   </main>
 
   <script src="/js/audio.js"></script>
