@@ -3,11 +3,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let myToken = localStorage.getItem('minigame_token') || null;
   let currentRoom = null;
+  let isSoundEnabled = true;
 
   // DOM 요소 선택자
   const els = {
+    mainContainer: document.getElementById('mainContainer'),
     roomBadge: document.getElementById('roomBadge'),
     displayRoomCode: document.getElementById('displayRoomCode'),
+    btnSoundToggle: document.getElementById('btnSoundToggle'),
 
     // Views
     viewHome: document.getElementById('viewHome'),
@@ -31,8 +34,12 @@ document.addEventListener('DOMContentLoaded', () => {
     btnLeaveLobby: document.getElementById('btnLeaveLobby'),
 
     // Game (Crocodile)
+    turnAlertBox: document.getElementById('turnAlertBox'),
     currentTurnName: document.getElementById('currentTurnName'),
+    turnNoticeSub: document.getElementById('turnNoticeSub'),
+    crocJawUpper: document.getElementById('crocJawUpper'),
     teethGrid: document.getElementById('teethGrid'),
+    gameGuideBanner: document.getElementById('gameGuideBanner'),
 
     // Result
     resultLoserName: document.getElementById('resultLoserName'),
@@ -40,6 +47,14 @@ document.addEventListener('DOMContentLoaded', () => {
     btnShareKakao: document.getElementById('btnShareKakao'),
     btnPlayAgain: document.getElementById('btnPlayAgain')
   };
+
+  // 사운드 토글
+  els.btnSoundToggle.addEventListener('click', () => {
+    isSoundEnabled = !isSoundEnabled;
+    window.soundFx.isMuted = !isSoundEnabled;
+    els.btnSoundToggle.textContent = isSoundEnabled ? '🔊' : '🔇';
+    els.btnSoundToggle.classList.toggle('text-rose-400', !isSoundEnabled);
+  });
 
   // 닉네임 자동 복원
   const savedNick = localStorage.getItem('minigame_nickname');
@@ -76,6 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 1. 방 만들기 클릭
   els.btnCreateRoom.addEventListener('click', () => {
+    window.soundFx.init();
     const nickname = els.inputNickname.value.trim() || '방장';
     localStorage.setItem('minigame_nickname', nickname);
 
@@ -94,6 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 2. 방 참여하기 클릭
   els.btnJoinRoom.addEventListener('click', () => {
+    window.soundFx.init();
     const nickname = els.inputNickname.value.trim() || '참가자';
     const roomCode = els.inputRoomCode.value.trim().toUpperCase();
     if (!roomCode || roomCode.length < 4) {
@@ -165,8 +182,8 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="p-3 rounded-xl border flex items-center justify-between ${
         p.token === myToken ? 'bg-amber-500/10 border-amber-500/50 text-amber-200' : 'bg-slate-900 border-slate-800 text-slate-200'
       }">
-        <span class="font-bold">${p.nickname}</span>
-        ${p.isHost ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-black">👑 방장</span>' : ''}
+        <span class="font-bold truncate">${p.nickname}</span>
+        ${p.isHost ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-black shrink-0">👑 방장</span>' : ''}
       </div>
     `).join('');
   }
@@ -177,30 +194,62 @@ document.addEventListener('DOMContentLoaded', () => {
     const state = room.gameState;
     if (!state) return;
 
-    const isMyTurn = state.currentTurnToken === myToken;
-    els.currentTurnName.textContent = isMyTurn ? '👉 내 차례입니다! (이빨 터치)' : `${state.currentTurnNickname} 차례 대기 중...`;
-    els.currentTurnName.className = isMyTurn ? 'text-2xl font-black text-emerald-400 animate-bounce' : 'text-xl font-bold text-amber-300';
+    // 악어 윗턱 닫힘 애니메이션 초기화 (입 열림 상태)
+    els.crocJawUpper.classList.remove('croc-jaw-closed');
+    els.mainContainer.classList.remove('shake-effect');
 
-    // 12개 이빨 렌더링
+    const isMyTurn = state.currentTurnToken === myToken;
+
+    if (isMyTurn) {
+      window.soundFx.playTurn();
+      window.soundFx.vibrate(25);
+      els.turnAlertBox.className = 'text-center p-3 rounded-2xl bg-emerald-950/80 border-2 border-emerald-500 transition shadow-lg';
+      els.currentTurnName.textContent = '👉 당신의 차례입니다!';
+      els.currentTurnName.className = 'text-2xl font-black text-emerald-300 animate-bounce mt-0.5';
+      els.turnNoticeSub.textContent = '⚠️ 신중하게 이빨 하나를 터치하세요!';
+      els.turnNoticeSub.className = 'text-xs text-emerald-200 font-bold mt-1';
+      els.gameGuideBanner.textContent = '당신의 손에 운명이 걸려 있습니다!';
+    } else {
+      els.turnAlertBox.className = 'text-center p-3 rounded-2xl bg-slate-800 border border-slate-700 transition';
+      els.currentTurnName.textContent = `${state.currentTurnNickname} 차례 대기 중...`;
+      els.currentTurnName.className = 'text-xl font-bold text-amber-300 mt-0.5';
+      els.turnNoticeSub.textContent = '악어가 입을 벌리고 기다리고 있습니다...';
+      els.turnNoticeSub.className = 'text-xs text-slate-400 font-semibold mt-1';
+      els.gameGuideBanner.textContent = `${state.currentTurnNickname}님이 이빨을 고르고 있습니다.`;
+    }
+
+    // 이빨 렌더링
     els.teethGrid.innerHTML = '';
     for (let i = 0; i < state.teethCount; i++) {
       const isPressed = state.pressedTeeth.includes(i);
       const tooth = document.createElement('button');
-      tooth.className = `aspect-square rounded-2xl font-black text-sm flex items-center justify-center transition active:scale-90 ${
-        isPressed 
-          ? 'bg-slate-900 border-2 border-slate-800 text-slate-600 cursor-not-allowed shadow-inner' 
-          : 'bg-gradient-to-b from-amber-100 to-amber-200 text-slate-900 border-2 border-amber-300 shadow-md hover:brightness-110'
-      }`;
-      tooth.textContent = isPressed ? '안전' : `🦷`;
+      tooth.setAttribute('data-tooth-index', i);
 
-      if (!isPressed && isMyTurn) {
-        tooth.addEventListener('click', () => {
-          window.socketManager.sendGameAction(room.id, myToken, 'pressTooth', { toothIndex: i }, (res) => {
-            if (!res || !res.success) alert(res ? res.error : '조작 실패');
-          });
-        });
-      } else if (!isMyTurn) {
+      if (isPressed) {
+        tooth.className = 'tooth-btn tooth-pressed flex items-center justify-center';
         tooth.disabled = true;
+      } else {
+        tooth.className = `tooth-btn flex items-center justify-center font-black text-sm text-slate-700 ${
+          isMyTurn ? 'cursor-pointer hover:brightness-105 active:scale-95' : 'cursor-not-allowed opacity-80'
+        }`;
+        tooth.innerHTML = '<span class="text-xs text-slate-400">🦷</span>';
+
+        if (isMyTurn) {
+          tooth.addEventListener('click', () => {
+            window.soundFx.playClick();
+            window.soundFx.vibrate(30);
+            tooth.disabled = true;
+            tooth.classList.add('tooth-pressed');
+
+            window.socketManager.sendGameAction(room.id, myToken, 'pressTooth', { toothIndex: i }, (res) => {
+              if (!res || !res.success) {
+                alert(res ? res.error : '조작 실패');
+              }
+            });
+          });
+        } else {
+          tooth.disabled = true;
+        }
       }
 
       els.teethGrid.appendChild(tooth);
@@ -266,15 +315,36 @@ ${window.location.origin}`;
     showView('game');
   });
 
+  // 안전한 이빨을 눌렀을 때
   socket.on('toothPressed', (data) => {
     currentRoom = data.room;
+    window.soundFx.playSafe();
     renderCrocodileGame(data.room);
   });
 
+  // 꽝 이빨을 눌러 악어가 쾅 물었을 때 (극적인 연출!)
   socket.on('gameFinished', (data) => {
     currentRoom = data.room;
-    renderResult(data);
-    showView('result');
+
+    // 1. 악어 윗턱 닫힘 연출
+    els.crocJawUpper.classList.add('croc-jaw-closed');
+
+    // 2. 화면 전체 셰이크 & 붉은 경고
+    els.mainContainer.classList.add('shake-effect');
+    els.turnAlertBox.className = 'text-center p-3 rounded-2xl bg-rose-950 border-2 border-rose-500 shadow-xl';
+    els.currentTurnName.textContent = `💥 콰앙! ${data.loser.nickname}님이 물렸습니다!`;
+    els.currentTurnName.className = 'text-2xl font-black text-rose-300 animate-pulse mt-0.5';
+    els.turnNoticeSub.textContent = '악어가 입을 쾅 닫았습니다!';
+
+    // 3. 묵직한 사운드 & 진동
+    window.soundFx.playChomp();
+    window.soundFx.vibrate([80, 50, 80, 50, 300]);
+
+    // 4. 1.2초 후 결과 화면으로 전환
+    setTimeout(() => {
+      renderResult(data);
+      showView('result');
+    }, 1200);
   });
 
   socket.on('roomDestroyed', (data) => {
