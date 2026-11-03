@@ -57,7 +57,7 @@ class RoomManager {
 
     return {
       success: true,
-      room,
+      room: room.toState(),
       token: host.token,
       isHost: true
     };

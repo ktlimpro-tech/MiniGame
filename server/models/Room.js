@@ -56,7 +56,7 @@ class Room {
         existing.socketId = socketId;
         existing.isConnected = true;
         if (nickname) existing.nickname = nickname;
-        return { success: true, player: existing, room: this, isReconnect: true };
+        return { success: true, player: existing, room: this.toState(), isReconnect: true };
       }
     }
 
@@ -77,7 +77,7 @@ class Room {
       joinedAt: Date.now()
     };
     this.players.push(newPlayer);
-    return { success: true, player: newPlayer, room: this, isReconnect: false };
+    return { success: true, player: newPlayer, room: this.toState(), isReconnect: false };
   }
 
   removePlayer(token) {
@@ -93,7 +93,7 @@ class Room {
   updateSettings(newSettings) {
     this.touch();
     this.settings = { ...this.settings, ...newSettings };
-    return { success: true, room: this };
+    return { success: true, room: this.toState() };
   }
 
   startGame() {
@@ -111,7 +111,7 @@ class Room {
       this.activeGame.init();
     }
 
-    return { success: true, room: this };
+    return { success: true, room: this.toState() };
   }
 
   handleAction(token, action, payload) {
@@ -136,7 +136,7 @@ class Room {
     this.resultEnteredAt = null;
     this.activeGame = null;
     this.gameResults = null;
-    return { success: true, room: this };
+    return { success: true, room: this.toState() };
   }
 
   destroy() {

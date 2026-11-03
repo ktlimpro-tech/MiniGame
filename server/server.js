@@ -80,7 +80,7 @@ io.on('connection', (socket) => {
     const result = roomManager.joinRoom(socket.id, roomCode, nickname, token);
     if (result.success) {
       socket.join(result.room.id);
-      broadcastToRoom(result.room.id, 'roomUpdated', result.room.toState());
+      broadcastToRoom(result.room.id, 'roomUpdated', result.room);
     }
     if (typeof callback === 'function') callback(result);
   });
@@ -107,7 +107,7 @@ io.on('connection', (socket) => {
   socket.on('updateSettings', ({ roomCode, token, settings }, callback) => {
     const result = roomManager.updateSettings(roomCode, token, settings);
     if (result.success) {
-      broadcastToRoom(result.room.id, 'roomUpdated', result.room.toState());
+      broadcastToRoom(result.room.id, 'roomUpdated', result.room);
     }
     if (typeof callback === 'function') callback(result);
   });
@@ -116,8 +116,8 @@ io.on('connection', (socket) => {
   socket.on('startGame', ({ roomCode, token }, callback) => {
     const result = roomManager.startGame(roomCode, token);
     if (result.success) {
-      broadcastToRoom(result.room.id, 'gameStarted', result.room.toState());
-      console.log(`[GameStart] Room(${result.room.id}) started! First turn: ${result.room.activeGame.getCurrentPlayer().nickname}`);
+      broadcastToRoom(result.room.id, 'gameStarted', result.room);
+      console.log(`[GameStart] Room(${result.room.id}) started! First turn: ${result.room.gameState?.currentTurnNickname}`);
     }
     if (typeof callback === 'function') callback(result);
   });
@@ -149,7 +149,7 @@ io.on('connection', (socket) => {
   socket.on('resetToLobby', ({ roomCode, token }, callback) => {
     const result = roomManager.resetToLobby(roomCode, token);
     if (result.success) {
-      broadcastToRoom(result.room.id, 'roomUpdated', result.room.toState());
+      broadcastToRoom(result.room.id, 'roomUpdated', result.room);
     }
     if (typeof callback === 'function') callback(result);
   });
