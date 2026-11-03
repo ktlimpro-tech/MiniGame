@@ -203,8 +203,18 @@ io.on('connection', (socket) => {
     if (typeof callback === 'function') callback(result);
   });
 
-  // 10. 관전자 실시간 리액션 이모지/말풍선 전송
+  // 10. 관전자 실시간 리액션 이모지/말풍선 전송 (서버 Rate Limiting 200ms 적용)
+  const socketReactionRateMap = new Map();
+
   socket.on('sendReaction', ({ roomCode, token, emoji, text }) => {
+    const now = Date.now();
+    const lastSent = socketReactionRateMap.get(socket.id) || 0;
+    if (now - lastSent < 200) {
+      // 200ms 이내의 연타 요청은 서버에서 즉시 드랍하여 패킷 폭풍 차단
+      return;
+    }
+    socketReactionRateMap.set(socket.id, now);
+
     const code = roomCode ? roomCode.toUpperCase() : '';
     const room = roomManager.rooms.get(code);
     if (!room) return;
@@ -214,15 +224,16 @@ io.on('connection', (socket) => {
     broadcastToRoom(room.id, 'reactionReceived', {
       senderToken: token,
       senderNickname: nickname,
-      emoji: emoji || '🐊',
-      text: text || '',
+      emoji: (emoji || '🐊').slice(0, 4),
+      text: (text || '').slice(0, 15), // 악의적인 긴 텍스트 차단
       id: Math.random().toString(36).substring(2, 9),
-      createdAt: Date.now()
+      createdAt: now
     });
   });
 
-  // 10. 연결 해제
+  // 11. 연결 해제
   socket.on('disconnect', () => {
+    socketReactionRateMap.delete(socket.id);
     const result = roomManager.handleDisconnect(socket.id);
     if (result && result.room) {
       broadcastToRoom(result.room.id, 'roomUpdated', result.room.toState());

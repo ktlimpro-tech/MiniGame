@@ -635,9 +635,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // 4. 관전자 실시간 리액션 이모지 부유 연출
+  // 4. 관전자 실시간 리액션 이모지 부유 연출 (DOM 최대 12개 캡 적용으로 렉 원천 차단)
+  const MAX_REACTION_BUBBLES = 12;
+
   function spawnFloatingReaction(data) {
     if (!els.reactionContainer) return;
+
+    // 화면에 버블이 너무 많으면 가장 오래된 버블을 즉시 제거 (모바일 렉 & 메모리 보호)
+    while (els.reactionContainer.children.length >= MAX_REACTION_BUBBLES) {
+      els.reactionContainer.removeChild(els.reactionContainer.firstChild);
+    }
 
     const bubble = document.createElement('div');
     const randomLeft = 15 + Math.random() * 70; // 15% ~ 85% 가로 랜덤 위치
@@ -658,20 +665,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1650);
   }
 
-  // 리액션 버튼 클릭 이벤트 바인딩
+  // 리액션 버튼 클릭 이벤트 (로컬 즉시 낙관적 렌더링 + 서버 송신 250ms 쓰로틀링)
+  let lastReactionSentTime = 0;
+  const REACTION_THROTTLE_MS = 250; // 초당 최대 4회로 서버 송신 제한
+
   document.querySelectorAll('.btn-reaction').forEach(btn => {
     btn.addEventListener('click', () => {
       if (!currentRoom || !myToken) return;
-      window.soundFx.playPop();
-      window.soundFx.vibrate(15);
+
       const emoji = btn.getAttribute('data-emoji') || '🐊';
       const text = btn.getAttribute('data-text') || '';
-      socket.emit('sendReaction', {
-        roomCode: currentRoom.id,
-        token: myToken,
+
+      // 1) 내 화면에는 즉시 반응 (소리 + 진동 + 로컬 버블 즉시 표시)
+      window.soundFx.playPop();
+      window.soundFx.vibrate(15);
+      const myNick = els.inputNickname?.value?.trim() || '나';
+      spawnFloatingReaction({
         emoji,
-        text
+        text,
+        senderNickname: myNick
       });
+
+      // 2) 서버 소켓 송신은 250ms 쓰로틀링하여 네트워크 패킷 폭증 차단
+      const now = Date.now();
+      if (now - lastReactionSentTime >= REACTION_THROTTLE_MS) {
+        lastReactionSentTime = now;
+        socket.emit('sendReaction', {
+          roomCode: currentRoom.id,
+          token: myToken,
+          emoji,
+          text
+        });
+      }
     });
   });
 
@@ -839,9 +864,11 @@ ${window.location.origin}`;
     showView('game');
   });
 
-  // 관전자 실시간 리액션 수신
+  // 관전자 실시간 리액션 수신 (본인 발송분은 이미 로컬에서 낙관적 렌더링했으므로 중복 제외)
   socket.on('reactionReceived', (data) => {
-    spawnFloatingReaction(data);
+    if (data.senderToken !== myToken) {
+      spawnFloatingReaction(data);
+    }
   });
 
   // 안전한 이빨을 눌렀을 때
