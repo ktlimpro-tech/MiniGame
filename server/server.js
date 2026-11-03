@@ -45,31 +45,91 @@ app.get('/health', (req, res) => {
   });
 });
 
-// 2. 관리자 통계 및 모니터링 API (보안 2중 검증: IP 화이트리스트 + 비밀번호)
-app.get('/api/admin/stats', (req, res) => {
+// 2. 관리자 웹 대시보드 페이지 라우트
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
+});
+
+// 관리자 인증 미들웨어 헬퍼 함수
+function checkAdminAuth(req, res, next) {
   const clientIp = getClientIp(req);
   const isWhitelisted = config.ADMIN_WHITELIST_IPS.includes(clientIp);
-
-  // 비밀번호 검증 (헤더 x-admin-password 또는 쿼리 password)
   const reqPassword = req.headers['x-admin-password'] || req.query.password;
   const isPasswordValid = config.ADMIN_PASSWORD && reqPassword === config.ADMIN_PASSWORD;
 
-  // IP 화이트리스트에 있거나, 유효한 관리자 비밀번호를 제공한 경우에만 접근 허용
   if (!isWhitelisted && !isPasswordValid) {
-    console.warn(`[Security] 비인가 관리자 통계 접근 차단: IP=${clientIp}`);
+    console.warn(`[Security] 비인가 관리자 API 접근 차단: IP=${clientIp}, Path=${req.path}`);
     return res.status(403).json({
-      error: '접근이 거부되었습니다. (관리자 권한 필요)',
-      clientIp
+      success: false,
+      error: '접근이 거부되었습니다. 관리자 권한이 필요합니다.',
+      clientIp,
+      requiresPassword: true
     });
   }
+  next();
+}
+
+// 3. 관리자 실시간 모니터링 통계 API
+app.get('/api/admin/stats', checkAdminAuth, (req, res) => {
+  const clientIp = getClientIp(req);
+  const uptimeSec = Math.floor(process.uptime());
+  const days = Math.floor(uptimeSec / 86400);
+  const hours = Math.floor((uptimeSec % 86400) / 3600);
+  const minutes = Math.floor((uptimeSec % 3600) / 60);
+  const seconds = uptimeSec % 60;
+  const uptimeFormatted = `${days > 0 ? days + '일 ' : ''}${hours}시간 ${minutes}분 ${seconds}초`;
+
+  const memoryUsageMB = Math.round(process.memoryUsage().rss / 1024 / 1024);
+  const memoryMaxMB = 512; // Render.com 기본 스타터 인스턴스 RAM 한도
+  const memoryRatio = Math.min(100, Math.round((memoryUsageMB / memoryMaxMB) * 100));
 
   res.json({
+    success: true,
     ...roomManager.getStats(),
+    connectedSockets: io.engine ? io.engine.clientsCount : (io.sockets.sockets.size || 0),
     server: {
-      uptimeSec: Math.floor(process.uptime()),
-      memoryUsageMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
-      nodeEnv: config.NODE_ENV
+      uptimeSec,
+      uptimeFormatted,
+      memoryUsageMB,
+      memoryMaxMB,
+      memoryRatio,
+      nodeEnv: config.NODE_ENV,
+      nodeVersion: process.version,
+      clientIp
     }
+  });
+});
+
+// 4. 관리자 특정 방 강제 폭파(소멸) API
+app.delete('/api/admin/rooms/:id', checkAdminAuth, (req, res) => {
+  const roomCode = req.params.id ? req.params.id.toUpperCase() : '';
+  const room = roomManager.rooms.get(roomCode);
+  if (!room) {
+    return res.status(404).json({ success: false, error: '해당 방을 찾을 수 없습니다.' });
+  }
+
+  // 방에 있는 플레이어들에게 방 해산 알림 통지
+  broadcastToRoom(roomCode, 'roomDestroyed', { reason: '관리자에 의해 방이 종료되었습니다.' });
+
+  // 소멸 처리
+  roomManager.destroyRoom(roomCode, 'admin_force_destroy');
+  console.log(`[Admin] 방(${roomCode})이 관리자에 의해 강제 소멸되었습니다.`);
+
+  res.json({
+    success: true,
+    message: `방(${roomCode})이 성공적으로 강제 소멸되었습니다.`,
+    remainingRooms: roomManager.rooms.size
+  });
+});
+
+// 5. 관리자 수동 인메모리 GC(가비지 컬렉터) 즉시 실행 API
+app.post('/api/admin/gc', checkAdminAuth, (req, res) => {
+  const result = roomManager.runManualGC();
+  console.log(`[Admin] 수동 GC 실행 완료: 정리된 방 ${result.cleaned}개, 남은 방 ${result.remaining}개`);
+  res.json({
+    success: true,
+    message: `수동 GC 완료: 유휴 방 ${result.cleaned}개가 정리되었습니다.`,
+    ...result
   });
 });
 

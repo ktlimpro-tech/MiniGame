@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MiniGame Hub - 관리자 실시간 모니터링</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes pulseSlow {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    .animate-pulse-slow {
+      animation: pulseSlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen antialiased flex flex-col font-sans">
+
+  <!-- 상단 네비게이션 헤더 -->
+  <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-40 shadow-lg">
+    <div class="flex items-center gap-3">
+      <span class="text-2xl animate-pulse">📊</span>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-base sm:text-lg font-black tracking-wider text-amber-400">MiniGame Hub 관리자 콘솔</h1>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950 border border-emerald-500/50 text-emerald-300 font-bold flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> Live
+          </span>
+        </div>
+        <p class="text-[11px] text-slate-400">실시간 서버 자원 및 활성 방 모니터링 대시보드</p>
+      </div>
+    </div>
+
+    <!-- 우측 제어 버튼 바 -->
+    <div class="flex items-center gap-2">
+      <!-- 자동 갱신 토글 -->
+      <label class="flex items-center gap-2 cursor-pointer bg-slate-800/80 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 text-xs font-bold text-slate-300 transition">
+        <input type="checkbox" id="toggleAutoRefresh" checked class="accent-amber-500 cursor-pointer w-3.5 h-3.5" />
+        <span>3초 자동갱신</span>
+      </label>
+
+      <!-- 수동 새로고침 -->
+      <button id="btnRefresh" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold transition flex items-center gap-1 shadow">
+        <span id="refreshIcon">🔄</span> <span>새로고침</span>
+      </button>
+
+      <!-- 수동 GC 정리 -->
+      <button id="btnManualGC" class="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 text-xs font-bold transition flex items-center gap-1 shadow" title="유휴 방 즉시 소멸">
+        <span>🧹</span> <span class="hidden sm:inline">유휴방</span> GC정리
+      </button>
+
+      <!-- 메인 게임 바로가기 -->
+      <a href="/" target="_blank" class="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition flex items-center gap-1 shadow">
+        <span>🎮</span> <span class="hidden sm:inline">게임</span> 홈
+      </a>
+    </div>
+  </header>
+
+  <!-- 메인 대시보드 본문 -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 space-y-6">
+
+    <!-- 1. 핵심 4대 지표 카드 그리드 -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+      <!-- 카드 1: 동시 활성 방 수 (게이지 바 시각화) -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-bold">
+          <span>🚪 동시 활성 방 수</span>
+          <span class="font-mono text-slate-500">MAX: <span id="statMaxRooms">20</span>개</span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span id="statActiveRooms" class="text-3xl font-black text-amber-400">0</span>
+          <span class="text-sm font-bold text-slate-400">/ <span id="statMaxRoomsSub">20</span>개</span>
+          <span id="statRoomPercent" class="text-xs font-bold ml-auto px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">0%</span>
+        </div>
+        <!-- 프로그레스 게이지 바 -->
+        <div class="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/60">
+          <div id="statRoomBar" class="h-full bg-amber-400 rounded-full transition-all duration-300" style="width: 0%;"></div>
+        </div>
+        <div id="statRoomStatusText" class="text-[11px] font-semibold text-emerald-400 flex items-center gap-1">
+          <span>●</span> 정상 운영 중 (수용 가능)
+        </div>
+      </div>
+
+      <!-- 카드 2: 실시간 소켓 연결자 수 -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-bold">
+          <span>👥 실시간 소켓 연결자</span>
+          <span class="text-[10px] text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-500/40 font-mono">Socket.io</span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span id="statConnectedSockets" class="text-3xl font-black text-emerald-400">0</span>
+          <span class="text-sm font-bold text-slate-400">명</span>
+        </div>
+        <p class="text-[11px] text-slate-500">현재 미니게임 허브에 접속 중인 활성 웹 클라이언트</p>
+      </div>
+
+      <!-- 카드 3: RAM 메모리 실시간 점유율 (게이지 바 시각화) -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-bold">
+          <span>💾 RAM 메모리 점유율</span>
+          <span class="font-mono text-slate-500">한도: 512 MB</span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span id="statMemoryUsage" class="text-3xl font-black text-sky-400">0</span>
+          <span class="text-sm font-bold text-slate-400">/ 512 MB</span>
+          <span id="statMemoryRatio" class="text-xs font-bold ml-auto px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">0%</span>
+        </div>
+        <!-- 프로그레스 게이지 바 -->
+        <div class="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/60">
+          <div id="statMemoryBar" class="h-full bg-sky-400 rounded-full transition-all duration-300" style="width: 0%;"></div>
+        </div>
+        <div id="statMemoryStatusText" class="text-[11px] font-semibold text-emerald-400 flex items-center gap-1">
+          <span>●</span> 메모리 쾌적 (누수 없음)
+        </div>
+      </div>
+
+      <!-- 카드 4: 서버 연속 가동 시간 (Uptime) -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-bold">
+          <span>⏱️ 서버 가동 시간 (Uptime)</span>
+          <span id="statNodeEnv" class="text-[10px] text-amber-400 bg-amber-950 px-2 py-0.5 rounded-full border border-amber-500/40 uppercase font-mono">production</span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span id="statUptime" class="text-xl sm:text-2xl font-black text-amber-300 leading-tight">0초</span>
+        </div>
+        <div class="text-[11px] text-slate-400 flex items-center justify-between">
+          <span>접속 IP: <strong id="statClientIp" class="text-slate-200 font-mono">--</strong></span>
+          <span id="statLastUpdated" class="text-[10px] text-slate-500 font-mono">--:--:--</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 2. 개별 방 상세 테이블 영역 -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+      <!-- 테이블 헤더 타이틀 바 -->
+      <div class="p-4 sm:p-5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-base font-black text-slate-100 flex items-center gap-2">
+            <span>📋</span> 개별 방 실시간 상세 현황
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">현재 서버 메모리에 상주 중인 모든 활성 방의 상태 및 참가자 현황</p>
+        </div>
+        <div class="text-xs font-bold text-slate-400 bg-slate-800/80 px-3 py-1 rounded-xl border border-slate-700">
+          활성 방: <strong id="tableRoomCountBadge" class="text-amber-400 font-mono">0</strong> / 20개
+        </div>
+      </div>
+
+      <!-- 반응형 테이블 -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="bg-slate-950/60 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-800">
+              <th class="py-3 px-4">방 코드</th>
+              <th class="py-3 px-4">게임 모드</th>
+              <th class="py-3 px-4">진행 상태</th>
+              <th class="py-3 px-4">참여 인원</th>
+              <th class="py-3 px-4">방장 닉네임</th>
+              <th class="py-3 px-4">생성 경과 시간</th>
+              <th class="py-3 px-4">마지막 조작</th>
+              <th class="py-3 px-4">생성자 IP</th>
+              <th class="py-3 px-4 text-center">관리 조치</th>
+            </tr>
+          </thead>
+          <tbody id="roomsTableBody" class="divide-y divide-slate-800/60 font-medium">
+            <tr>
+              <td colspan="9" class="py-12 text-center text-slate-500">
+                <span class="text-2xl block mb-2">⏳</span>
+                서버 통계 데이터를 불러오는 중입니다...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 비밀번호 인증 모달 (화이트리스트 외 IP 접속 시) -->
+  <div id="modalAuth" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+    <div class="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-3xl p-6 shadow-2xl space-y-4">
+      <div class="text-center space-y-2">
+        <div class="text-4xl animate-bounce">🔐</div>
+        <h3 class="text-lg font-black text-slate-100">관리자 인증 필요</h3>
+        <p class="text-xs text-slate-400">비인가 IP 접속이 감지되었습니다.<br>관리자 비밀번호를 입력해주세요.</p>
+      </div>
+
+      <div class="space-y-3">
+        <input type="password" id="inputAdminPassword" placeholder="관리자 비밀번호 입력"
+          class="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm font-bold focus:outline-none focus:border-amber-400" />
+        
+        <p id="authErrorMsg" class="hidden text-xs text-rose-400 font-bold text-center"></p>
+
+        <button id="btnSubmitAuth" class="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm active:scale-95 transition shadow">
+          인증 및 접속하기
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 푸터 -->
+  <footer class="border-t border-slate-900 py-4 text-center text-xs text-slate-600 font-mono">
+    MiniGame Hub Admin Console &bull; Memory Guard Engine v2.0
+  </footer>
+
+  <script>
+    // 상태 관리 변수
+    let autoRefreshTimer = null;
+    let cachedPassword = sessionStorage.getItem('minigame_admin_pwd') || '';
+
+    const els = {
+      statActiveRooms: document.getElementById('statActiveRooms'),
+      statMaxRooms: document.getElementById('statMaxRooms'),
+      statMaxRoomsSub: document.getElementById('statMaxRoomsSub'),
+      statRoomPercent: document.getElementById('statRoomPercent'),
+      statRoomBar: document.getElementById('statRoomBar'),
+      statRoomStatusText: document.getElementById('statRoomStatusText'),
+
+      statConnectedSockets: document.getElementById('statConnectedSockets'),
+      statMemoryUsage: document.getElementById('statMemoryUsage'),
+      statMemoryRatio: document.getElementById('statMemoryRatio'),
+      statMemoryBar: document.getElementById('statMemoryBar'),
+      statMemoryStatusText: document.getElementById('statMemoryStatusText'),
+
+      statUptime: document.getElementById('statUptime'),
+      statNodeEnv: document.getElementById('statNodeEnv'),
+      statClientIp: document.getElementById('statClientIp'),
+      statLastUpdated: document.getElementById('statLastUpdated'),
+
+      tableRoomCountBadge: document.getElementById('tableRoomCountBadge'),
+      roomsTableBody: document.getElementById('roomsTableBody'),
+
+      btnRefresh: document.getElementById('btnRefresh'),
+      btnManualGC: document.getElementById('btnManualGC'),
+      toggleAutoRefresh: document.getElementById('toggleAutoRefresh'),
+      refreshIcon: document.getElementById('refreshIcon'),
+
+      modalAuth: document.getElementById('modalAuth'),
+      inputAdminPassword: document.getElementById('inputAdminPassword'),
+      btnSubmitAuth: document.getElementById('btnSubmitAuth'),
+      authErrorMsg: document.getElementById('authErrorMsg')
+    };
+
+    // 통계 데이터 가져오기
+    async function fetchStats() {
+      try {
+        const headers = {};
+        if (cachedPassword) headers['x-admin-password'] = cachedPassword;
+
+        const res = await fetch('/api/admin/stats', { headers });
+
+        if (res.status === 403) {
+          // 관리자 비밀번호 필요
+          els.modalAuth.classList.remove('hidden');
+          return;
+        }
+
+        const data = await res.json();
+        if (data.success) {
+          els.modalAuth.classList.add('hidden');
+          renderStats(data);
+        } else {
+          console.error('[Admin] Fetch error:', data.error);
+        }
+      } catch (e) {
+        console.error('[Admin] Network error:', e);
+      }
+    }
+
+    // 대시보드 렌더링
+    function renderStats(data) {
+      // 1. 활성 방 수
+      const active = data.activeRooms || 0;
+      const max = data.maxRooms || 20;
+      const roomRatio = Math.min(100, Math.round((active / max) * 100));
+
+      els.statActiveRooms.textContent = active;
+      els.statMaxRooms.textContent = max;
+      els.statMaxRoomsSub.textContent = max;
+      els.statRoomPercent.textContent = `${roomRatio}%`;
+      els.statRoomBar.style.width = `${roomRatio}%`;
+      els.tableRoomCountBadge.textContent = active;
+
+      if (roomRatio >= 90) {
+        els.statRoomBar.className = 'h-full bg-rose-500 rounded-full transition-all duration-300';
+        els.statRoomStatusText.innerHTML = '<span class="text-rose-400">● 상한선 임박 (20개 초과 시 대기)</span>';
+      } else if (roomRatio >= 70) {
+        els.statRoomBar.className = 'h-full bg-amber-500 rounded-full transition-all duration-300';
+        els.statRoomStatusText.innerHTML = '<span class="text-amber-400">● 방 개설 활발</span>';
+      } else {
+        els.statRoomBar.className = 'h-full bg-emerald-400 rounded-full transition-all duration-300';
+        els.statRoomStatusText.innerHTML = '<span class="text-emerald-400">● 정상 운영 중 (수용 가능)</span>';
+      }
+
+      // 2. 소켓 연결자 수
+      els.statConnectedSockets.textContent = data.connectedSockets || 0;
+
+      // 3. RAM 점유율
+      const memUsage = data.server?.memoryUsageMB || 0;
+      const memMax = data.server?.memoryMaxMB || 512;
+      const memRatio = data.server?.memoryRatio || Math.round((memUsage / memMax) * 100);
+
+      els.statMemoryUsage.textContent = memUsage;
+      els.statMemoryRatio.textContent = `${memRatio}%`;
+      els.statMemoryBar.style.width = `${memRatio}%`;
+
+      if (memRatio >= 80) {
+        els.statMemoryBar.className = 'h-full bg-rose-500 rounded-full transition-all duration-300';
+        els.statMemoryStatusText.innerHTML = '<span class="text-rose-400">● 메모리 경고 (주의 필요)</span>';
+      } else if (memRatio >= 60) {
+        els.statMemoryBar.className = 'h-full bg-amber-500 rounded-full transition-all duration-300';
+        els.statMemoryStatusText.innerHTML = '<span class="text-amber-400">● 점유율 상승 중</span>';
+      } else {
+        els.statMemoryBar.className = 'h-full bg-sky-400 rounded-full transition-all duration-300';
+        els.statMemoryStatusText.innerHTML = '<span class="text-emerald-400">● 메모리 쾌적 (누수 없음)</span>';
+      }
+
+      // 4. 가동 시간
+      els.statUptime.textContent = data.server?.uptimeFormatted || `${data.server?.uptimeSec}초`;
+      els.statNodeEnv.textContent = data.server?.nodeEnv || 'production';
+      els.statClientIp.textContent = data.server?.clientIp || '--';
+
+      const now = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      els.statLastUpdated.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+      // 5. 개별 방 테이블 렌더링
+      renderRoomsTable(data.rooms || []);
+    }
+
+    // 개별 방 테이블 렌더링
+    function renderRoomsTable(rooms) {
+      if (!rooms || rooms.length === 0) {
+        els.roomsTableBody.innerHTML = `
+          <tr>
+            <td colspan="9" class="py-12 text-center text-slate-500">
+              <span class="text-3xl block mb-2">🌴</span>
+              현재 개설되어 진행 중인 방이 없습니다. (0/20)
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      els.roomsTableBody.innerHTML = rooms.map(room => {
+        // 상태 뱃지 포맷
+        let statusBadge = '';
+        if (room.status === 'LOBBY') {
+          statusBadge = '<span class="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/40 text-amber-300 font-bold text-[11px]">대기 중</span>';
+        } else if (room.status === 'PLAYING') {
+          statusBadge = '<span class="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/40 text-emerald-300 font-bold text-[11px] animate-pulse">게임 진행 중 🐊</span>';
+        } else if (room.status === 'RESULT') {
+          statusBadge = '<span class="px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/40 text-rose-300 font-bold text-[11px]">결과 화면 🏆</span>';
+        }
+
+        // 게임 종류
+        const gameTypeMap = { crocodile: '🐊 악어 이빨' };
+        const gameTypeName = gameTypeMap[room.gameType] || room.gameType;
+
+        // 경과 시간 포맷
+        const formatTime = sec => {
+          if (sec < 60) return `${sec}초 전`;
+          const m = Math.floor(sec / 60);
+          const s = sec % 60;
+          return `${m}분 ${s}초 전`;
+        };
+
+        // 참가자 목록 텍스트
+        const playerNames = (room.players || []).map(p => `${p.nickname}${p.isHost ? '(방장)' : ''}${p.isConnected ? '' : '(오프라인)'}`).join(', ');
+
+        return `
+          <tr class="hover:bg-slate-800/40 transition">
+            <td class="py-3 px-4 font-mono font-bold text-amber-300 text-sm tracking-wider">
+              ${room.id}
+            </td>
+            <td class="py-3 px-4 font-bold text-slate-200">
+              ${gameTypeName}
+            </td>
+            <td class="py-3 px-4">
+              ${statusBadge}
+            </td>
+            <td class="py-3 px-4 font-bold text-slate-200" title="${playerNames}">
+              👥 ${room.playerCount}명
+            </td>
+            <td class="py-3 px-4 font-bold text-slate-100">
+              👑 ${room.hostNickname}
+            </td>
+            <td class="py-3 px-4 text-slate-400 font-mono">
+              ${formatTime(room.elapsedSec || 0)}
+            </td>
+            <td class="py-3 px-4 text-slate-400 font-mono">
+              ${formatTime(room.idleSec || 0)}
+            </td>
+            <td class="py-3 px-4 text-slate-400 font-mono text-[11px]">
+              ${room.hostIp || '127.0.0.1'}
+            </td>
+            <td class="py-3 px-4 text-center">
+              <button onclick="forceDestroyRoom('${room.id}')"
+                class="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 font-bold text-[11px] transition active:scale-95 shadow">
+                강제 종료 💥
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // 관리자 특정 방 강제 종료
+    window.forceDestroyRoom = async function(roomCode) {
+      if (!confirm(`정말로 방(${roomCode})을 강제 종료(폭파)하시겠습니까?\n방에 속한 모든 사용자가 퇴장 처리됩니다.`)) return;
+
+      try {
+        const headers = {};
+        if (cachedPassword) headers['x-admin-password'] = cachedPassword;
+
+        const res = await fetch(`/api/admin/rooms/${roomCode}`, {
+          method: 'DELETE',
+          headers
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(`방(${roomCode})이 강제 종료되었습니다.`);
+          fetchStats();
+        } else {
+          alert(`종료 실패: ${data.error}`);
+        }
+      } catch (e) {
+        alert('요청 처리 중 오류가 발생했습니다.');
+      }
+    };
+
+    // 관리자 수동 GC 실행
+    els.btnManualGC.addEventListener('click', async () => {
+      if (!confirm('유휴 상태(전원 이탈 또는 잠수)인 방들을 즉시 정리(GC)하시겠습니까?')) return;
+
+      try {
+        const headers = {};
+        if (cachedPassword) headers['x-admin-password'] = cachedPassword;
+
+        const res = await fetch('/api/admin/gc', {
+          method: 'POST',
+          headers
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(`수동 GC 완료: 유휴 방 ${data.cleaned}개가 소멸되었습니다.`);
+          fetchStats();
+        } else {
+          alert(`GC 실행 실패: ${data.error}`);
+        }
+      } catch (e) {
+        alert('요청 처리 중 오류가 발생했습니다.');
+      }
+    });
+
+    // 수동 새로고침
+    els.btnRefresh.addEventListener('click', () => {
+      els.refreshIcon.classList.add('animate-spin');
+      fetchStats().finally(() => {
+        setTimeout(() => els.refreshIcon.classList.remove('animate-spin'), 400);
+      });
+    });
+
+    // 자동 갱신 토글
+    function updateAutoRefresh() {
+      if (els.toggleAutoRefresh.checked) {
+        if (!autoRefreshTimer) {
+          autoRefreshTimer = setInterval(fetchStats, 3000);
+        }
+      } else {
+        if (autoRefreshTimer) {
+          clearInterval(autoRefreshTimer);
+          autoRefreshTimer = null;
+        }
+      }
+    }
+    els.toggleAutoRefresh.addEventListener('change', updateAutoRefresh);
+
+    // 비밀번호 모달 제출
+    els.btnSubmitAuth.addEventListener('click', () => {
+      const pwd = els.inputAdminPassword.value.trim();
+      if (!pwd) return;
+      cachedPassword = pwd;
+      sessionStorage.setItem('minigame_admin_pwd', pwd);
+      els.authErrorMsg.classList.add('hidden');
+      fetchStats();
+    });
+
+    els.inputAdminPassword.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') els.btnSubmitAuth.click();
+    });
+
+    // 초기 실행
+    fetchStats();
+    updateAutoRefresh();
+  </script>
+</body>
+</html>

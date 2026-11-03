@@ -82,6 +82,7 @@ class RoomManager {
 
     const roomCode = this.generateRoomCode();
     const room = new Room(roomCode, hostNickname, socketId, settings);
+    room.hostIp = clientIp || '127.0.0.1';
     this.rooms.set(roomCode, room);
 
     const host = room.getHost();
@@ -255,17 +256,44 @@ class RoomManager {
     }
   }
 
+  runManualGC() {
+    let cleaned = 0;
+    const now = Date.now();
+    for (const [code, room] of this.rooms.entries()) {
+      const allDisconnected = room.players.length === 0 || room.players.every(p => !p.isConnected);
+      const idleTime = now - room.lastActivityAt;
+      if (allDisconnected || idleTime > this.PLAYING_IDLE_TIMEOUT_MS) {
+        this.destroyRoom(code, 'manual_admin_gc');
+        cleaned++;
+      }
+    }
+    return { cleaned, remaining: this.rooms.size };
+  }
+
   getStats() {
+    const now = Date.now();
     return {
       activeRooms: this.rooms.size,
       maxRooms: this.MAX_ROOMS,
-      rooms: Array.from(this.rooms.values()).map(r => ({
-        id: r.id,
-        status: r.status,
-        gameType: r.settings.gameType,
-        players: r.players.length,
-        createdAt: r.createdAt
-      }))
+      rooms: Array.from(this.rooms.values()).map(r => {
+        const host = r.getHost();
+        return {
+          id: r.id,
+          status: r.status,
+          gameType: r.settings.gameType,
+          playerCount: r.players.length,
+          players: r.players.map(p => ({
+            nickname: p.nickname,
+            isHost: p.isHost,
+            isConnected: p.isConnected
+          })),
+          hostNickname: host ? host.nickname : '알 수 없음',
+          hostIp: r.hostIp || '127.0.0.1',
+          createdAt: r.createdAt,
+          elapsedSec: Math.floor((now - r.createdAt) / 1000),
+          idleSec: Math.floor((now - r.lastActivityAt) / 1000)
+        };
+      })
     };
   }
 }
